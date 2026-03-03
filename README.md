@@ -307,15 +307,8 @@ python -m backend.simulator --extreme
 
 ---
 
-## 📄 License
-
-This project is for academic/educational purposes.
-
----
-
 ## 👨‍💻 Author
-
-Flood DAS System - Hydrological Informatics Project
+Team 4 - Hydrological Informatics Project
 
 ---
 
