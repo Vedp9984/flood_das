@@ -1,80 +1,55 @@
 /**
- * Flood DAS - Main Application JavaScript
- * ========================================
- * Smart City Urban Flood Monitoring System
- * 
- * Features:
- * - Interactive Leaflet map with GIS layers
- * - Real-time data updates via polling/WebSocket
- * - Chart.js visualizations
- * - Alert management
+ * Flood DAS - QGIS-like Layer System
+ * Layer-based GIS application for flood monitoring
  */
 
-// ============================================
 // Configuration
-// ============================================
-
 const CONFIG = {
     API_URL: 'http://localhost:8000',
+    GEOJSON_URL: '/home/ved_maurya/college/sem6/Hydro_informatics/flood_das/geojson',
     WS_URL: 'ws://localhost:8000/ws',
-    UPDATE_INTERVAL: 5000, // Poll every 5 seconds
-    MAP_CENTER: [17.4898, 78.4340], // GHMC Zone 12 center (from QGIS data)
-    MAP_ZOOM: 12, // Adjusted for full zone coverage
-    MAX_CHART_POINTS: 30
+    UPDATE_INTERVAL: 5000,
+    MAP_CENTER: [17.4898, 78.4340],
+    MAP_ZOOM: 12
 };
 
-// ============================================
 // Global State
-// ============================================
-
 let map = null;
-let layers = {
-    watershed: null,
-    streams: null,
-    floodZones: null,
-    sensors: null
-};
-let charts = {
-    rainfall: null,
-    waterLevel: null,
-    discharge: null
-};
-let websocket = null;
-let isConnected = false;
+let layerConfig = null;
+let layers = {};
+let basemapLayers = {};
+let currentBasemap = null;
+let charts = {};
+let featureCount = 0;
 
-// Chart data arrays
-let chartData = {
-    labels: [],
-    rainfall: [],
-    waterLevel: [],
-    discharge: []
-};
-
-// ============================================
+// ========================================
 // Initialization
-// ============================================
+// ========================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🌊 Flood DAS - Initializing...');
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🌊 Flood DAS - Initializing QGIS-like Layer System...');
     
     initDateTime();
     initMap();
     initCharts();
-    loadGeoJSONLayers();
+    
+    await loadLayerConfig();
+    initBasemaps();
+    await loadAllLayers();
+    buildLayerTree();
+    buildLegend();
+    
+    initEventListeners();
     initWebSocket();
-    startPolling();
+    startDataPolling();
     
-    // Initial data fetch
-    fetchCurrentStatus();
-    fetchAlerts();
-    fetchHistoricalData();
-    
+    updateLayerCount();
     console.log('✓ Flood DAS - Ready');
 });
 
-// ============================================
-// Date/Time Display
-// ============================================
+// ========================================
+// DateTime Display
+// ========================================
 
 function initDateTime() {
     updateDateTime();
@@ -84,683 +59,469 @@ function initDateTime() {
 function updateDateTime() {
     const now = new Date();
     document.getElementById('current-date').textContent = now.toLocaleDateString('en-IN', {
-        weekday: 'short',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
+        weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'
     });
     document.getElementById('current-time').textContent = now.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
 }
 
-// ============================================
+// ========================================
 // Map Initialization
-// ============================================
+// ========================================
 
 function initMap() {
-    // Initialize Leaflet map
     map = L.map('map', {
         center: CONFIG.MAP_CENTER,
         zoom: CONFIG.MAP_ZOOM,
-        zoomControl: true
+        zoomControl: false
     });
     
-    // Add dark theme tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 19
-    }).addTo(map);
+    // Mouse move for coordinates
+    map.on('mousemove', (e) => {
+        document.querySelector('#map-coords span').textContent = 
+            `Lat: ${e.latlng.lat.toFixed(5)}, Lon: ${e.latlng.lng.toFixed(5)}`;
+    });
     
-    // Initialize layer control buttons
-    initLayerControls();
+    // Zoom change
+    map.on('zoomend', () => {
+        const zoom = map.getZoom();
+        document.getElementById('map-zoom').textContent = `Zoom: ${zoom}`;
+        const scale = Math.round(591657550.5 / Math.pow(2, zoom));
+        document.getElementById('map-scale').textContent = `Scale: 1:${scale.toLocaleString()}`;
+    });
     
+    map.fire('zoomend');
     console.log('✓ Map initialized');
 }
 
-function initLayerControls() {
-    document.getElementById('btn-watershed').addEventListener('click', () => toggleLayer('watershed'));
-    document.getElementById('btn-streams').addEventListener('click', () => toggleLayer('streams'));
-    document.getElementById('btn-flood-zones').addEventListener('click', () => toggleLayer('floodZones'));
-    document.getElementById('btn-sensors').addEventListener('click', () => toggleLayer('sensors'));
+// ========================================
+// Layer Configuration
+// ========================================
+
+async function loadLayerConfig() {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}/geojson/layer_config.json`);
+        if (!response.ok) throw new Error('Config not found');
+        layerConfig = await response.json();
+    } catch (error) {
+        console.warn('Loading default layer config');
+        layerConfig = getDefaultLayerConfig();
+    }
 }
 
-function toggleLayer(layerName) {
-    const btn = document.getElementById(`btn-${layerName.replace(/([A-Z])/g, '-$1').toLowerCase()}`);
+function getDefaultLayerConfig() {
+    return {
+        groups: [
+            {
+                id: 'base', name: 'Base Layers', icon: 'layer-group', expanded: true,
+                layers: [
+                    { id: 'watershed', name: 'Watershed Boundary', file: 'layers/watershed_boundary.geojson', type: 'polygon', visible: true,
+                      style: { color: '#2980b9', weight: 3, fillColor: '#2980b9', fillOpacity: 0.1, dashArray: '10, 5' }, zIndex: 100 },
+                    { id: 'wards', name: 'Ward Boundaries', file: 'layers/ward_boundaries.geojson', type: 'polygon', visible: true,
+                      style: { color: '#7f8c8d', weight: 1.5, fillColor: '#bdc3c7', fillOpacity: 0.05 }, zIndex: 90 }
+                ]
+            },
+            {
+                id: 'hydrology', name: 'Drainage Network', icon: 'water', expanded: true,
+                layers: [
+                    { id: 'channels_4', name: 'Main Channels (Order 4)', file: 'layers/drainage_order_4.geojson', type: 'line', visible: true,
+                      style: { color: '#0066cc', weight: 5, opacity: 0.9 }, zIndex: 200 },
+                    { id: 'channels_3', name: 'Secondary (Order 3)', file: 'layers/drainage_order_3.geojson', type: 'line', visible: true,
+                      style: { color: '#3399ff', weight: 3.5, opacity: 0.8 }, zIndex: 190 },
+                    { id: 'channels_2', name: 'Tertiary (Order 2)', file: 'layers/drainage_order_2.geojson', type: 'line', visible: false,
+                      style: { color: '#66b3ff', weight: 2.5, opacity: 0.7 }, zIndex: 180 },
+                    { id: 'channels_1', name: 'Minor (Order 1)', file: 'layers/drainage_order_1.geojson', type: 'line', visible: false,
+                      style: { color: '#99ccff', weight: 1.5, opacity: 0.6 }, zIndex: 170 }
+                ]
+            },
+            {
+                id: 'risk', name: 'Flood Risk Zones', icon: 'exclamation-triangle', expanded: true,
+                layers: [
+                    { id: 'risk_high', name: 'High Risk Zones', file: 'layers/flood_risk_high.geojson', type: 'polygon', visible: true,
+                      style: { color: '#e74c3c', weight: 2, fillColor: '#e74c3c', fillOpacity: 0.4 }, zIndex: 150 },
+                    { id: 'risk_medium', name: 'Medium Risk Zones', file: 'layers/flood_risk_medium.geojson', type: 'polygon', visible: true,
+                      style: { color: '#f39c12', weight: 2, fillColor: '#f39c12', fillOpacity: 0.3 }, zIndex: 140 },
+                    { id: 'risk_low', name: 'Low Risk Zones', file: 'layers/flood_risk_low.geojson', type: 'polygon', visible: false,
+                      style: { color: '#27ae60', weight: 2, fillColor: '#27ae60', fillOpacity: 0.2 }, zIndex: 130 }
+                ]
+            },
+            {
+                id: 'sensors', name: 'Monitoring', icon: 'broadcast-tower', expanded: true,
+                layers: [
+                    { id: 'rain_gauges', name: 'Rain Gauges', file: 'layers/rain_gauges.geojson', type: 'point', visible: true,
+                      style: { color: '#3498db', icon: 'cloud-rain', size: 24 }, zIndex: 300 },
+                    { id: 'water_levels', name: 'Water Level Sensors', file: 'layers/water_level_sensors.geojson', type: 'point', visible: true,
+                      style: { color: '#9b59b6', icon: 'water', size: 24 }, zIndex: 290 }
+                ]
+            }
+        ],
+        basemaps: [
+            { id: 'dark', name: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', default: true },
+            { id: 'light', name: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' },
+            { id: 'osm', name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' },
+            { id: 'satellite', name: 'Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' }
+        ]
+    };
+}
+
+// ========================================
+// Basemap Management
+// ========================================
+
+function initBasemaps() {
+    const container = document.getElementById('basemap-content');
+    container.innerHTML = '';
     
-    if (layers[layerName]) {
-        if (map.hasLayer(layers[layerName])) {
-            map.removeLayer(layers[layerName]);
-            btn.classList.remove('active');
-        } else {
-            map.addLayer(layers[layerName]);
-            btn.classList.add('active');
+    layerConfig.basemaps.forEach(bm => {
+        basemapLayers[bm.id] = L.tileLayer(bm.url, {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        });
+        
+        const option = document.createElement('div');
+        option.className = `basemap-option ${bm.default ? 'active' : ''}`;
+        option.innerHTML = `
+            <input type="radio" name="basemap" value="${bm.id}" ${bm.default ? 'checked' : ''}>
+            <span>${bm.name}</span>
+        `;
+        option.onclick = () => setBasemap(bm.id);
+        container.appendChild(option);
+        
+        if (bm.default) {
+            basemapLayers[bm.id].addTo(map);
+            currentBasemap = bm.id;
+        }
+    });
+}
+
+function setBasemap(id) {
+    if (currentBasemap) {
+        map.removeLayer(basemapLayers[currentBasemap]);
+    }
+    basemapLayers[id].addTo(map);
+    currentBasemap = id;
+    
+    document.querySelectorAll('.basemap-option').forEach(opt => {
+        opt.classList.toggle('active', opt.querySelector('input').value === id);
+        opt.querySelector('input').checked = opt.querySelector('input').value === id;
+    });
+}
+
+// ========================================
+// Layer Loading
+// ========================================
+
+async function loadAllLayers() {
+    const loadingEl = document.querySelector('.loading-layers');
+    
+    for (const group of layerConfig.groups) {
+        for (const layerDef of group.layers) {
+            try {
+                const response = await fetch(`${CONFIG.API_URL}/geojson/${layerDef.file}`);
+                if (!response.ok) continue;
+                
+                const geojson = await response.json();
+                const layer = createLayer(geojson, layerDef);
+                layers[layerDef.id] = { leafletLayer: layer, config: layerDef, geojson: geojson };
+                featureCount += geojson.features?.length || 0;
+                
+                if (layerDef.visible) {
+                    layer.addTo(map);
+                }
+            } catch (error) {
+                console.warn(`Could not load layer: ${layerDef.id}`, error);
+            }
         }
     }
+    
+    if (loadingEl) loadingEl.remove();
 }
 
-// ============================================
-// GeoJSON Layer Loading
-// ============================================
-
-async function loadGeoJSONLayers() {
-    try {
-        // Load watershed boundary
-        await loadWatershed();
-        
-        // Load streams
-        await loadStreams();
-        
-        // Load flood zones
-        await loadFloodZones();
-        
-        // Load sensors
-        await loadSensors();
-        
-        console.log('✓ All GeoJSON layers loaded');
-    } catch (error) {
-        console.error('Error loading GeoJSON layers:', error);
-        // Try loading from local files if API fails
-        loadLocalGeoJSON();
-    }
-}
-
-async function loadWatershed() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/geojson/watershed`);
-        const data = await response.json();
-        
-        layers.watershed = L.geoJSON(data, {
-            style: {
-                color: '#2980b9',
-                weight: 3,
-                fillColor: '#2980b9',
-                fillOpacity: 0.1,
-                dashArray: '5, 5'
-            },
-            onEachFeature: (feature, layer) => {
-                layer.bindPopup(`
-                    <div class="popup-title">${feature.properties.name}</div>
-                    <div class="popup-row">
-                        <span class="popup-label">Area:</span>
-                        <span class="popup-value">${feature.properties.area_km2} km²</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Runoff Coeff:</span>
-                        <span class="popup-value">${feature.properties.runoff_coeff}</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Land Use:</span>
-                        <span class="popup-value">${feature.properties.land_use}</span>
-                    </div>
-                `);
-            }
-        });
-        
-        layers.watershed.addTo(map);
-        document.getElementById('btn-watershed').classList.add('active');
-    } catch (error) {
-        console.warn('Could not load watershed from API:', error);
-    }
-}
-
-async function loadStreams() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/geojson/streams`);
-        const data = await response.json();
-        
-        layers.streams = L.geoJSON(data, {
-            style: (feature) => ({
-                color: '#3498db',
-                weight: feature.properties.stream_order >= 3 ? 4 : 2,
-                opacity: 0.8
-            }),
-            onEachFeature: (feature, layer) => {
-                layer.bindPopup(`
-                    <div class="popup-title">${feature.properties.name}</div>
-                    <div class="popup-row">
-                        <span class="popup-label">Stream Order:</span>
-                        <span class="popup-value">${feature.properties.stream_order}</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Length:</span>
-                        <span class="popup-value">${feature.properties.length_km} km</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Type:</span>
-                        <span class="popup-value">${feature.properties.type}</span>
-                    </div>
-                `);
-            }
-        });
-        
-        layers.streams.addTo(map);
-        document.getElementById('btn-streams').classList.add('active');
-    } catch (error) {
-        console.warn('Could not load streams from API:', error);
-    }
-}
-
-async function loadFloodZones() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/geojson/flood_zones`);
-        const data = await response.json();
-        
-        layers.floodZones = L.geoJSON(data, {
-            style: (feature) => ({
-                color: feature.properties.risk_color,
-                weight: 2,
-                fillColor: feature.properties.risk_color,
-                fillOpacity: 0.3
-            }),
-            onEachFeature: (feature, layer) => {
-                layer.bindPopup(`
-                    <div class="popup-title">${feature.properties.name}</div>
-                    <div class="popup-row">
-                        <span class="popup-label">Risk Level:</span>
-                        <span class="popup-value" style="color: ${feature.properties.risk_color}; font-weight: bold;">
-                            ${feature.properties.risk_level.toUpperCase()}
-                        </span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Flood Depth:</span>
-                        <span class="popup-value">${feature.properties.flood_depth_potential_m} m</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Population at Risk:</span>
-                        <span class="popup-value">${feature.properties.population_at_risk.toLocaleString()}</span>
-                    </div>
-                `);
-            }
-        });
-        
-        layers.floodZones.addTo(map);
-        document.getElementById('btn-flood-zones').classList.add('active');
-    } catch (error) {
-        console.warn('Could not load flood zones from API:', error);
-    }
-}
-
-async function loadSensors() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/geojson/sensors`);
-        const data = await response.json();
-        
-        layers.sensors = L.geoJSON(data, {
+function createLayer(geojson, config) {
+    if (config.type === 'point') {
+        return L.geoJSON(geojson, {
             pointToLayer: (feature, latlng) => {
                 const icon = L.divIcon({
-                    html: `<i class="fas fa-${feature.properties.type === 'rain_gauge' ? 'cloud-rain' : 'water'}" 
-                              style="color: ${feature.properties.color}; font-size: 20px;"></i>`,
-                    className: 'sensor-marker-icon',
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
+                    html: `<div class="sensor-marker" style="border-color: ${config.style.color}">
+                             <i class="fas fa-${config.style.icon}" style="color: ${config.style.color}; font-size: 14px;"></i>
+                           </div>`,
+                    className: '',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
                 });
                 return L.marker(latlng, { icon });
             },
-            onEachFeature: (feature, layer) => {
-                const props = feature.properties;
-                layer.bindPopup(`
-                    <div class="popup-title">
-                        <i class="fas fa-${props.type === 'rain_gauge' ? 'cloud-rain' : 'water'}" 
-                           style="color: ${props.color}"></i>
-                        ${props.name}
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Type:</span>
-                        <span class="popup-value">${props.type === 'rain_gauge' ? 'Rain Gauge' : 'Water Level Sensor'}</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Location:</span>
-                        <span class="popup-value">${props.location}</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Status:</span>
-                        <span class="popup-value" style="color: #27ae60;">${props.status}</span>
-                    </div>
-                    <div class="popup-row">
-                        <span class="popup-label">Installed:</span>
-                        <span class="popup-value">${props.installed_date}</span>
-                    </div>
-                `);
-            }
+            onEachFeature: (feature, layer) => bindPopup(feature, layer)
         });
-        
-        layers.sensors.addTo(map);
-        document.getElementById('btn-sensors').classList.add('active');
-    } catch (error) {
-        console.warn('Could not load sensors from API:', error);
+    } else {
+        return L.geoJSON(geojson, {
+            style: () => config.style,
+            onEachFeature: (feature, layer) => bindPopup(feature, layer)
+        });
     }
 }
 
-function loadLocalGeoJSON() {
-    console.log('Attempting to load local GeoJSON files...');
-    // Fallback for when API is not available
-    // In production, this would load from local files
+function bindPopup(feature, layer) {
+    const props = feature.properties;
+    let content = `<div class="popup-title">${props.name || 'Feature'}</div>`;
+    
+    Object.entries(props).forEach(([key, value]) => {
+        if (key !== 'name' && key !== 'layer_type' && !key.startsWith('style')) {
+            content += `<div class="popup-row"><span class="popup-label">${key}:</span><span class="popup-value">${value}</span></div>`;
+        }
+    });
+    
+    layer.bindPopup(content);
 }
 
-// ============================================
-// Chart Initialization
-// ============================================
+// ========================================
+// Layer Tree UI (QGIS-like)
+// ========================================
+
+function buildLayerTree() {
+    const container = document.getElementById('layer-tree');
+    container.innerHTML = '';
+    
+    layerConfig.groups.forEach(group => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'layer-group';
+        groupEl.innerHTML = `
+            <div class="layer-group-header" data-group="${group.id}">
+                <i class="fas fa-chevron-down group-toggle"></i>
+                <input type="checkbox" class="group-checkbox" checked>
+                <i class="fas fa-${group.icon} group-icon"></i>
+                <span class="group-name">${group.name}</span>
+            </div>
+            <div class="layer-group-content" id="group-${group.id}">
+                ${group.layers.map(layer => createLayerItemHTML(layer)).join('')}
+            </div>
+        `;
+        container.appendChild(groupEl);
+        
+        // Group toggle
+        const header = groupEl.querySelector('.layer-group-header');
+        header.onclick = (e) => {
+            if (e.target.classList.contains('group-checkbox')) return;
+            const content = groupEl.querySelector('.layer-group-content');
+            const toggle = header.querySelector('.group-toggle');
+            content.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+        };
+        
+        // Group checkbox
+        const groupCheckbox = header.querySelector('.group-checkbox');
+        groupCheckbox.onchange = () => {
+            group.layers.forEach(l => toggleLayer(l.id, groupCheckbox.checked));
+            groupEl.querySelectorAll('.layer-checkbox').forEach(cb => cb.checked = groupCheckbox.checked);
+        };
+    });
+    
+    // Individual layer toggles
+    document.querySelectorAll('.layer-checkbox').forEach(cb => {
+        cb.onchange = () => toggleLayer(cb.dataset.layer, cb.checked);
+    });
+}
+
+function createLayerItemHTML(layer) {
+    const colorStyle = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : '';
+    const count = layers[layer.id]?.geojson?.features?.length || 0;
+    
+    return `
+        <div class="layer-item" data-layer="${layer.id}">
+            <input type="checkbox" class="layer-checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}>
+            <div class="layer-color ${colorStyle}" style="background: ${layer.style.fillColor || layer.style.color}"></div>
+            <span class="layer-name">${layer.name}</span>
+            <span class="layer-count">(${count})</span>
+        </div>
+    `;
+}
+
+function toggleLayer(layerId, visible) {
+    const layerData = layers[layerId];
+    if (!layerData) return;
+    
+    if (visible) {
+        layerData.leafletLayer.addTo(map);
+    } else {
+        map.removeLayer(layerData.leafletLayer);
+    }
+    layerData.config.visible = visible;
+    buildLegend();
+}
+
+// ========================================
+// Legend
+// ========================================
+
+function buildLegend() {
+    const container = document.getElementById('legend-content');
+    container.innerHTML = '';
+    
+    layerConfig.groups.forEach(group => {
+        group.layers.forEach(layer => {
+            if (!layer.visible) return;
+            
+            const symbolClass = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : '';
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.innerHTML = `
+                <div class="legend-symbol ${symbolClass}" style="background: ${layer.style.fillColor || layer.style.color}"></div>
+                <span>${layer.name}</span>
+            `;
+            container.appendChild(item);
+        });
+    });
+}
+
+// ========================================
+// Event Listeners
+// ========================================
+
+function initEventListeners() {
+    // Toolbar buttons
+    document.getElementById('btn-zoom-fit').onclick = () => {
+        if (layers.watershed?.leafletLayer) {
+            map.fitBounds(layers.watershed.leafletLayer.getBounds());
+        } else {
+            map.setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
+        }
+    };
+    document.getElementById('btn-zoom-in').onclick = () => map.zoomIn();
+    document.getElementById('btn-zoom-out').onclick = () => map.zoomOut();
+    
+    // Expand/Collapse all
+    document.getElementById('btn-expand-all').onclick = () => {
+        document.querySelectorAll('.layer-group-content').forEach(el => el.classList.remove('collapsed'));
+        document.querySelectorAll('.group-toggle').forEach(el => el.classList.remove('collapsed'));
+    };
+    document.getElementById('btn-collapse-all').onclick = () => {
+        document.querySelectorAll('.layer-group-content').forEach(el => el.classList.add('collapsed'));
+        document.querySelectorAll('.group-toggle').forEach(el => el.classList.add('collapsed'));
+    };
+    
+    // Collapsible panels
+    document.querySelectorAll('.panel-header.collapsible').forEach(header => {
+        header.onclick = () => {
+            header.classList.toggle('expanded');
+            const target = document.getElementById(header.dataset.target);
+            if (target) target.style.display = header.classList.contains('expanded') ? 'block' : 'none';
+        };
+    });
+}
+
+// ========================================
+// Charts
+// ========================================
 
 function initCharts() {
     const chartConfig = {
         responsive: true,
         maintainAspectRatio: false,
-        animation: {
-            duration: 300
-        },
-        scales: {
-            x: {
-                display: false
-            },
-            y: {
-                grid: {
-                    color: 'rgba(255, 255, 255, 0.1)'
-                },
-                ticks: {
-                    color: '#a0aec0',
-                    font: { size: 10 }
-                }
-            }
-        },
-        plugins: {
-            legend: {
-                display: false
-            }
-        }
+        animation: { duration: 300 },
+        scales: { x: { display: false }, y: { display: false } },
+        plugins: { legend: { display: false } }
     };
     
-    // Rainfall Chart
     charts.rainfall = new Chart(document.getElementById('rainfall-chart'), {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            ...chartConfig,
-            scales: {
-                ...chartConfig.scales,
-                y: {
-                    ...chartConfig.scales.y,
-                    suggestedMin: 0,
-                    suggestedMax: 100
-                }
-            }
-        }
+        data: { labels: [], datasets: [{ data: [], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.4, pointRadius: 0 }] },
+        options: chartConfig
     });
     
-    // Water Level Chart
     charts.waterLevel = new Chart(document.getElementById('water-level-chart'), {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: '#9b59b6',
-                backgroundColor: 'rgba(155, 89, 182, 0.2)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            ...chartConfig,
-            scales: {
-                ...chartConfig.scales,
-                y: {
-                    ...chartConfig.scales.y,
-                    suggestedMin: 0,
-                    suggestedMax: 5
-                }
-            }
-        }
+        data: { labels: [], datasets: [{ data: [], borderColor: '#9b59b6', backgroundColor: 'rgba(155, 89, 182, 0.2)', fill: true, tension: 0.4, pointRadius: 0 }] },
+        options: chartConfig
     });
-    
-    // Discharge Chart
-    charts.discharge = new Chart(document.getElementById('discharge-chart'), {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                backgroundColor: 'rgba(0, 212, 255, 0.6)',
-                borderColor: '#00d4ff',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            ...chartConfig,
-            scales: {
-                ...chartConfig.scales,
-                y: {
-                    ...chartConfig.scales.y,
-                    suggestedMin: 0
-                }
-            }
-        }
-    });
-    
-    console.log('✓ Charts initialized');
 }
 
-// ============================================
-// WebSocket Connection
-// ============================================
+// ========================================
+// WebSocket & Data Polling
+// ========================================
 
 function initWebSocket() {
     try {
-        websocket = new WebSocket(CONFIG.WS_URL);
-        
-        websocket.onopen = () => {
-            console.log('✓ WebSocket connected');
-            setConnectionStatus(true);
-        };
-        
-        websocket.onclose = () => {
-            console.log('WebSocket disconnected');
+        const ws = new WebSocket(CONFIG.WS_URL);
+        ws.onopen = () => setConnectionStatus(true);
+        ws.onclose = () => {
             setConnectionStatus(false);
-            // Attempt reconnection after 5 seconds
             setTimeout(initWebSocket, 5000);
         };
-        
-        websocket.onerror = (error) => {
-            console.warn('WebSocket error:', error);
-            setConnectionStatus(false);
-        };
-        
-        websocket.onmessage = (event) => {
-            handleWebSocketMessage(JSON.parse(event.data));
-        };
+        ws.onmessage = (e) => handleRealtimeData(JSON.parse(e.data));
     } catch (error) {
-        console.warn('WebSocket initialization failed:', error);
         setConnectionStatus(false);
     }
 }
 
-function handleWebSocketMessage(data) {
-    console.log('WS Message:', data.type);
-    
-    if (data.type === 'rainfall_update') {
-        updateMetric('rainfall', data.rainfall_mm);
-        updateMetric('discharge', data.discharge_m3s);
-        addChartData(data.rainfall_mm, null, data.discharge_m3s);
-    } else if (data.type === 'water_level_update') {
-        updateMetric('water-level', data.level_m);
-        addChartData(null, data.level_m, null);
-    }
-    
-    // Check for new alerts
-    if (data.alerts && data.alerts.length > 0) {
-        data.alerts.forEach(alert => {
-            showAlertBanner(alert);
-        });
-        fetchAlerts(); // Refresh alert list
-    }
-    
-    // Update last update time
-    updateLastUpdateTime();
-}
-
 function setConnectionStatus(connected) {
-    isConnected = connected;
-    const statusEl = document.getElementById('connection-status');
-    
-    if (connected) {
-        statusEl.className = 'connection-status connected';
-        statusEl.innerHTML = '<i class="fas fa-circle"></i><span>Connected</span>';
-    } else {
-        statusEl.className = 'connection-status disconnected';
-        statusEl.innerHTML = '<i class="fas fa-circle"></i><span>Disconnected</span>';
-    }
+    const el = document.getElementById('connection-status');
+    el.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+    el.querySelector('span').textContent = connected ? 'Live' : 'Offline';
 }
 
-// ============================================
-// Polling (Fallback for WebSocket)
-// ============================================
-
-function startPolling() {
-    setInterval(() => {
-        fetchCurrentStatus();
-        fetchAlerts();
-    }, CONFIG.UPDATE_INTERVAL);
+function startDataPolling() {
+    fetchCurrentStatus();
+    setInterval(fetchCurrentStatus, CONFIG.UPDATE_INTERVAL);
 }
-
-// ============================================
-// API Data Fetching
-// ============================================
 
 async function fetchCurrentStatus() {
     try {
         const response = await fetch(`${CONFIG.API_URL}/current_status`);
-        const data = await response.json();
-        
-        updateMetric('rainfall', data.latest_rainfall_mm);
-        updateMetric('water-level', data.latest_water_level_m);
-        updateMetric('discharge', data.latest_discharge_m3s);
-        updateRiskLevel(data.risk_level, data.status_message);
-        
-        // Update connection status if polling works
-        if (!isConnected) {
-            setConnectionStatus(true);
-        }
-        
-        updateLastUpdateTime();
-    } catch (error) {
-        console.warn('Error fetching status:', error);
-        setConnectionStatus(false);
-    }
-}
-
-async function fetchAlerts() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/alerts?limit=10&active_only=true`);
-        const alerts = await response.json();
-        
-        renderAlerts(alerts);
-        document.getElementById('alert-count').textContent = alerts.length;
-    } catch (error) {
-        console.warn('Error fetching alerts:', error);
-    }
-}
-
-async function fetchHistoricalData() {
-    try {
-        const response = await fetch(`${CONFIG.API_URL}/history?hours=6`);
-        const data = await response.json();
-        
-        // Populate charts with historical data
-        if (data.rainfall) {
-            data.rainfall.forEach(point => {
-                addChartData(point.value, null, null, new Date(point.timestamp));
-            });
-        }
-        if (data.water_level) {
-            data.water_level.forEach(point => {
-                addChartData(null, point.value, null, new Date(point.timestamp));
-            });
-        }
-        if (data.discharge) {
-            data.discharge.forEach(point => {
-                addChartData(null, null, point.value, new Date(point.timestamp));
-            });
+        if (response.ok) {
+            const data = await response.json();
+            updateMetrics(data);
         }
     } catch (error) {
-        console.warn('Error fetching historical data:', error);
+        console.warn('Could not fetch status');
     }
 }
 
-// ============================================
-// UI Updates
-// ============================================
+function updateMetrics(data) {
+    document.getElementById('rainfall-value').textContent = data.latest_rainfall_mm?.toFixed(1) || '0.0';
+    document.getElementById('water-level-value').textContent = data.latest_water_level_m?.toFixed(2) || '0.00';
+    document.getElementById('discharge-value').textContent = data.latest_discharge_m3s?.toFixed(1) || '0.0';
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+    
+    // Update risk level
+    const risk = data.risk_level?.toLowerCase() || 'normal';
+    const riskCard = document.getElementById('risk-card');
+    riskCard.className = `status-card risk-card ${risk}`;
+    document.getElementById('risk-level').textContent = risk.toUpperCase();
+    document.getElementById('risk-message').textContent = data.status_message || 'System operational';
+    
+    // Update charts
+    addChartData(data.latest_rainfall_mm || 0, data.latest_water_level_m || 0);
+}
 
-function updateMetric(metricId, value) {
-    const el = document.getElementById(`${metricId}-value`);
-    if (el) {
-        const formattedValue = typeof value === 'number' ? 
-            (metricId === 'water-level' ? value.toFixed(2) : value.toFixed(1)) : value;
-        el.textContent = formattedValue;
-        
-        // Add visual feedback for changes
-        el.classList.add('updated');
-        setTimeout(() => el.classList.remove('updated'), 500);
+function addChartData(rainfall, waterLevel) {
+    const maxPoints = 20;
+    const time = new Date().toLocaleTimeString();
+    
+    charts.rainfall.data.labels.push(time);
+    charts.rainfall.data.datasets[0].data.push(rainfall);
+    if (charts.rainfall.data.labels.length > maxPoints) {
+        charts.rainfall.data.labels.shift();
+        charts.rainfall.data.datasets[0].data.shift();
+    }
+    charts.rainfall.update('none');
+    
+    charts.waterLevel.data.labels.push(time);
+    charts.waterLevel.data.datasets[0].data.push(waterLevel);
+    if (charts.waterLevel.data.labels.length > maxPoints) {
+        charts.waterLevel.data.labels.shift();
+        charts.waterLevel.data.datasets[0].data.shift();
+    }
+    charts.waterLevel.update('none');
+}
+
+function handleRealtimeData(data) {
+    if (data.type === 'rainfall_update' || data.type === 'water_level_update') {
+        fetchCurrentStatus();
     }
 }
 
-function updateRiskLevel(level, message) {
-    const card = document.getElementById('risk-card');
-    const levelEl = document.getElementById('risk-level');
-    const messageEl = document.getElementById('risk-message');
-    
-    // Remove all risk classes
-    card.classList.remove('normal', 'low', 'medium', 'high', 'critical');
-    
-    // Add current risk class
-    const riskClass = level.toLowerCase();
-    card.classList.add(riskClass);
-    
-    levelEl.textContent = level;
-    messageEl.textContent = message;
+function updateLayerCount() {
+    document.getElementById('layer-count').textContent = Object.keys(layers).length;
+    document.getElementById('feature-count').textContent = featureCount;
 }
-
-function renderAlerts(alerts) {
-    const container = document.getElementById('alert-list');
-    
-    if (alerts.length === 0) {
-        container.innerHTML = `
-            <div class="no-alerts">
-                <i class="fas fa-check-circle"></i>
-                <p>No active alerts</p>
-            </div>
-        `;
-        return;
-    }
-    
-    container.innerHTML = alerts.map(alert => `
-        <div class="alert-item ${alert.severity}">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div class="alert-content">
-                <div class="alert-type">${alert.alert_type}</div>
-                <div class="alert-message">${alert.message}</div>
-                <div class="alert-time">${formatTimestamp(alert.timestamp)}</div>
-            </div>
-        </div>
-    `).join('');
-}
-
-function addChartData(rainfall, waterLevel, discharge, timestamp = new Date()) {
-    const timeLabel = timestamp.toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    // Add to rainfall chart
-    if (rainfall !== null) {
-        charts.rainfall.data.labels.push(timeLabel);
-        charts.rainfall.data.datasets[0].data.push(rainfall);
-        
-        if (charts.rainfall.data.labels.length > CONFIG.MAX_CHART_POINTS) {
-            charts.rainfall.data.labels.shift();
-            charts.rainfall.data.datasets[0].data.shift();
-        }
-        charts.rainfall.update('none');
-    }
-    
-    // Add to water level chart
-    if (waterLevel !== null) {
-        charts.waterLevel.data.labels.push(timeLabel);
-        charts.waterLevel.data.datasets[0].data.push(waterLevel);
-        
-        if (charts.waterLevel.data.labels.length > CONFIG.MAX_CHART_POINTS) {
-            charts.waterLevel.data.labels.shift();
-            charts.waterLevel.data.datasets[0].data.shift();
-        }
-        charts.waterLevel.update('none');
-    }
-    
-    // Add to discharge chart
-    if (discharge !== null) {
-        charts.discharge.data.labels.push(timeLabel);
-        charts.discharge.data.datasets[0].data.push(discharge);
-        
-        if (charts.discharge.data.labels.length > CONFIG.MAX_CHART_POINTS) {
-            charts.discharge.data.labels.shift();
-            charts.discharge.data.datasets[0].data.shift();
-        }
-        charts.discharge.update('none');
-    }
-}
-
-function updateLastUpdateTime() {
-    const el = document.getElementById('last-update');
-    el.textContent = new Date().toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-// ============================================
-// Alert Banner
-// ============================================
-
-function showAlertBanner(alert) {
-    const banner = document.getElementById('alert-banner');
-    const message = document.getElementById('alert-banner-message');
-    
-    message.textContent = `${alert.type}: ${alert.message || 'Check dashboard for details'}`;
-    banner.classList.add('show');
-    
-    // Auto-hide after 10 seconds
-    setTimeout(() => {
-        closeAlertBanner();
-    }, 10000);
-}
-
-function closeAlertBanner() {
-    const banner = document.getElementById('alert-banner');
-    banner.classList.remove('show');
-}
-
-// ============================================
-// Utilities
-// ============================================
-
-function formatTimestamp(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
-    
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} hrs ago`;
-    
-    return date.toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// ============================================
-// Global Error Handler
-// ============================================
-
-window.onerror = function(msg, url, line) {
-    console.error('Global error:', msg, url, line);
-    return false;
-};
-
-// Make closeAlertBanner globally accessible
-window.closeAlertBanner = closeAlertBanner;

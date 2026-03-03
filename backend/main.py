@@ -571,46 +571,60 @@ async def get_current_status(db: Session = Depends(get_db)):
 # GEOJSON ENDPOINTS
 # ----------------------------------------------------------------------------
 
-@app.get("/geojson/{layer_name}", tags=["GIS"])
-async def get_geojson_layer(layer_name: str):
+@app.get("/geojson/{layer_path:path}", tags=["GIS"])
+async def get_geojson_layer(layer_path: str):
     """
-    Serve GeoJSON layers for Web GIS display.
+    Serve GeoJSON layers and config files for Web GIS display.
     
-    Available layers:
-    - watershed
-    - streams
-    - flood_zones
-    - sensors
+    Supports nested paths like:
+    - layers/watershed_boundary.geojson
+    - layers/drainage_order_4.geojson
+    - layer_config.json
+    - watershed.geojson (legacy)
     """
     # Get path to geojson directory
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    geojson_path = os.path.join(base_path, "geojson", f"{layer_name}.geojson")
+    
+    # Handle both .geojson and .json extensions
+    if not (layer_path.endswith('.geojson') or layer_path.endswith('.json')):
+        layer_path = f"{layer_path}.geojson"
+    
+    geojson_path = os.path.join(base_path, "geojson", layer_path)
     
     if not os.path.exists(geojson_path):
         raise HTTPException(
             status_code=404,
-            detail=f"Layer '{layer_name}' not found. Available: watershed, streams, flood_zones, sensors"
+            detail=f"Layer '{layer_path}' not found"
         )
     
     with open(geojson_path, 'r') as f:
-        geojson_data = json.load(f)
+        data = json.load(f)
     
-    return JSONResponse(content=geojson_data)
+    return JSONResponse(content=data)
 
 
 @app.get("/geojson_layers", tags=["GIS"])
 async def list_geojson_layers():
-    """List available GeoJSON layers"""
+    """List available GeoJSON layers including nested layers"""
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     geojson_dir = os.path.join(base_path, "geojson")
+    layers_dir = os.path.join(geojson_dir, "layers")
     
-    layers = []
+    result = {"root_layers": [], "layer_files": []}
+    
+    # Root level geojson files
     if os.path.exists(geojson_dir):
         for f in os.listdir(geojson_dir):
             if f.endswith('.geojson'):
-                layers.append(f.replace('.geojson', ''))
+                result["root_layers"].append(f.replace('.geojson', ''))
     
-    return {"layers": layers}
+    # Layers subfolder
+    if os.path.exists(layers_dir):
+        for f in os.listdir(layers_dir):
+            if f.endswith('.geojson'):
+                result["layer_files"].append(f"layers/{f}")
+    
+    return result
 
 
 # ----------------------------------------------------------------------------
