@@ -20,6 +20,8 @@ let basemapLayers = {};
 let currentBasemap = null;
 let charts = {};
 let featureCount = 0;
+let selectedSubbasin = null;
+let currentIntensity = 50;
 
 // ========================================
 // Initialization
@@ -41,6 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initEventListeners();
     initWebSocket();
     startDataPolling();
+    initSimulationListeners();
 
     updateLayerCount();
     console.log('✓ Flood DAS - Ready');
@@ -309,25 +312,118 @@ function createLayer(geojson, config) {
         });
     } else {
         return L.geoJSON(geojson, {
-            style: () => ({
-                ...config.style,
-                fillOpacity: config.style.fillOpacity !== undefined ? config.style.fillOpacity : 0.5,
-                opacity: config.style.opacity !== undefined ? config.style.opacity : 1
-            }),
-            onEachFeature: (feature, layer) => bindPopup(feature, layer)
+            style: (feature) => {
+                const isSelected = selectedSubbasin && selectedSubbasin.feature.properties.DN === feature.properties.DN;
+                return {
+                    ...config.style,
+                    fillOpacity: isSelected ? 0.6 : (config.style.fillOpacity !== undefined ? config.style.fillOpacity : 0.5),
+                    color: isSelected ? '#ff0000' : config.style.color,
+                    weight: isSelected ? 4 : config.style.weight,
+                    opacity: config.style.opacity !== undefined ? config.style.opacity : 1
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                bindPopup(feature, layer);
+                if (config.id === 'subbasins') {
+                    layer.on('click', (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        selectSubbasin(layer);
+                    });
+                }
+            }
         });
     }
 }
 
+function selectSubbasin(layer) {
+    // Reset previous selection
+    if (selectedSubbasin) {
+        const prevLayer = selectedSubbasin;
+        prevLayer.setStyle({
+            color: prevLayer.options.originalColor || '#8e44ad',
+            weight: 2.5,
+            fillOpacity: 0.2
+        });
+    }
+
+    selectedSubbasin = layer;
+    layer.options.originalColor = layer.options.originalColor || layer.options.color;
+    layer.setStyle({
+        color: '#ff0000',
+        weight: 4,
+        fillOpacity: 0.6
+    });
+    layer.bringToFront();
+
+    // Show simulation results
+    document.getElementById('no-selection-msg').style.display = 'none';
+    const resultsEl = document.getElementById('simulation-results');
+    resultsEl.style.display = 'block';
+    document.getElementById('selected-basin-id').textContent = layer.feature.properties.DN || layer.feature.properties.Basin_ID;
+
+    // Populate subbasin details grid
+    const detailsContainer = document.getElementById('subbasin-details');
+    const props = layer.feature.properties;
+
+    // Kirpich Equation: Tc = 0.0195 * L^0.77 * S^-0.385
+    // L = Watershed_Length_m, S = Relief_m / Watershed_Length_m
+    const L = props.Watershed_Length_m || 0;
+    const H = props.Relief_m || 1; // avoid div by zero
+    const S = H / L;
+    let tc = 0;
+    if (L > 0 && S > 0) {
+        tc = 0.0195 * Math.pow(L, 0.77) * Math.pow(S, -0.385);
+    }
+
+    const keyMetrics = [
+        { label: 'Area', value: props.Area_km2?.toFixed(2), unit: 'km²' },
+        { label: 'Length', value: props.Watershed_Length_m?.toFixed(0), unit: 'm' },
+        { label: 'Slope', value: props.Avg_Slope_m_m?.toFixed(3), unit: 'm/m' },
+        { label: 'Relief', value: props.Relief_m?.toFixed(1), unit: 'm' },
+        { label: 'Order', value: props.Max_Stream_Order, unit: '' },
+        { label: 'Tc (min)', value: tc.toFixed(1), unit: 'min' }
+    ];
+
+    detailsContainer.innerHTML = keyMetrics.map(m => `
+        <div class="detail-item">
+            <span class="detail-label">${m.label}</span>
+            <span class="detail-value">${m.value || '--'} ${m.unit}</span>
+        </div>
+    `).join('');
+
+    updateSimulation();
+}
+
 function bindPopup(feature, layer) {
     const props = feature.properties;
-    let content = `<div class="popup-title">${props.name || 'Feature'}</div>`;
+    const isSubbasin = props.Area_km2 !== undefined;
 
-    Object.entries(props).forEach(([key, value]) => {
-        if (key !== 'name' && key !== 'layer_type' && !key.startsWith('style')) {
-            content += `<div class="popup-row"><span class="popup-label">${key}:</span><span class="popup-value">${value}</span></div>`;
-        }
-    });
+    let title = props.name || (isSubbasin ? `Subbasin ${props.DN || props.Basin_ID}` : 'Feature');
+    let content = `<div class="popup-title">${title}</div>`;
+
+    if (isSubbasin) {
+        // Formatted subbasin details
+        const metrics = [
+            { label: 'Drainage Area', value: props.Area_km2?.toFixed(2), unit: 'km²' },
+            { label: 'Relief', value: props.Relief_m?.toFixed(1), unit: 'm' },
+            { label: 'Avg Slope', value: props.Avg_Slope_m_m?.toFixed(4), unit: 'm/m' },
+            { label: 'Watershed Length', value: props.Watershed_Length_m?.toFixed(0), unit: 'm' },
+            { label: 'Max Stream Order', value: props.Max_Stream_Order, unit: '' },
+            { label: 'Form Factor', value: props.Form_Factor?.toFixed(3), unit: '' }
+        ];
+
+        metrics.forEach(m => {
+            content += `<div class="popup-row"><span class="popup-label">${m.label}:</span><span class="popup-value">${m.value} ${m.unit}</span></div>`;
+        });
+    } else {
+        Object.entries(props).forEach(([key, value]) => {
+            if (key !== 'name' && key !== 'layer_type' && !key.startsWith('style')) {
+                // Prettify labels
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                content += `<div class="popup-row"><span class="popup-label">${label}:</span><span class="popup-value">${value}</span></div>`;
+            }
+        });
+    }
 
     layer.bindPopup(content);
 }
@@ -462,11 +558,15 @@ function buildLegend() {
         group.layers.forEach(layer => {
             if (!layer.visible) return;
 
-            const symbolClass = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : '';
+            const symbolClass = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : layer.type === 'raster' ? 'raster' : '';
             const item = document.createElement('div');
             item.className = 'legend-item';
+
+            // Safe color retrieval
+            const color = layer.style ? (layer.style.fillColor || layer.style.color) : (layer.type === 'raster' ? 'linear-gradient(45deg, #27ae60, #f39c12, #e74c3c)' : '#7f8c8d');
+
             item.innerHTML = `
-                <div class="legend-symbol ${symbolClass}" style="background: ${layer.style.fillColor || layer.style.color}"></div>
+                <div class="legend-symbol ${symbolClass}" style="background: ${color}"></div>
                 <span>${layer.name}</span>
             `;
             container.appendChild(item);
@@ -578,10 +678,18 @@ async function fetchCurrentStatus() {
 }
 
 function updateMetrics(data) {
-    document.getElementById('rainfall-value').textContent = data.latest_rainfall_mm?.toFixed(1) || '0.0';
+    const rainfall = data.latest_rainfall_mm || 0;
+    currentIntensity = rainfall;
+
+    document.getElementById('rainfall-value').textContent = rainfall.toFixed(1);
     document.getElementById('water-level-value').textContent = data.latest_water_level_m?.toFixed(2) || '0.00';
     document.getElementById('discharge-value').textContent = data.latest_discharge_m3s?.toFixed(1) || '0.0';
     document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+    // Update simulation if a basin is selected
+    if (selectedSubbasin) {
+        updateSimulation();
+    }
 
     // Update risk level
     const risk = data.risk_level?.toLowerCase() || 'normal';
@@ -624,4 +732,30 @@ function handleRealtimeData(data) {
 function updateLayerCount() {
     document.getElementById('layer-count').textContent = Object.keys(layers).length;
     document.getElementById('feature-count').textContent = featureCount;
+}
+
+// ========================================
+// Simulation Logic
+// ========================================
+
+function initSimulationListeners() {
+    console.log('Subbasin analysis enabled. Select a basin to view characteristics.');
+}
+
+function updateSimulation() {
+    if (!selectedSubbasin) return;
+
+    const props = selectedSubbasin.feature.properties;
+    const areaKm2 = props.Area_km2 || 0;
+    const C = 0.85; // Rational Method Runoff Coefficient
+
+    // Q = C * i * A
+    // i in m/s = intensity_mm_hr / (1000 * 3600)
+    // A in m2 = area_km2 * 1,000,000
+    // Q = C * (i/3600) * (A) / 1000
+    // Simplified: Q = (C * i * A) / 360
+    const intensity_mm_hr = currentIntensity;
+    const discharge = (C * intensity_mm_hr * areaKm2) / 3.6; // Correct conversion for m3/s
+
+    document.getElementById('est-discharge-value').textContent = `${discharge.toFixed(2)} m³/s`;
 }

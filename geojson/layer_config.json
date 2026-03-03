@@ -47,6 +47,20 @@
       "expanded": true,
       "layers": [
         {
+          "id": "subbasins",
+          "name": "Drainage Basins (Detailed)",
+          "file": "layers/drainage_basins_enriched.geojson",
+          "type": "polygon",
+          "visible": true,
+          "style": {
+            "color": "#8e44ad",
+            "weight": 2.5,
+            "fillColor": "#8e44ad",
+            "fillOpacity": 0.2
+          },
+          "zIndex": 160
+        },
+        {
           "id": "channels_4",
           "name": "Main Channels (Order 4)",
           "file": "layers/drainage_order_4.geojson",

@@ -137,6 +137,29 @@
                     <div class="info-item"><span class="info-label">Channels</span><span class="info-value">153</span></div>
                 </div>
             </div>
+
+            <div class="simulation-card">
+                <div class="card-header"><i class="fas fa-microscope"></i> SUBBASIN ANALYSIS</div>
+                <div class="card-body">
+                    <div id="simulation-results" class="simulation-results" style="display: none;">
+                        <div class="result-item">
+                            <span class="result-label">Basin:</span>
+                            <span class="result-value" id="selected-basin-id">-</span>
+                        </div>
+                        <div id="subbasin-details" class="subbasin-details">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Est. Peak Q:</span>
+                            <span class="result-value highlight" id="est-discharge-value">0.0 m³/s</span>
+                        </div>
+                        <div class="formula-hint">Q = C × i × A / 3.6 | Kirpich Tc</div>
+                    </div>
+                    <div id="no-selection-msg" class="no-selection-msg">
+                        <p><i class="fas fa-mouse-pointer"></i> Click a subbasin to simulate</p>
+                    </div>
+                </div>
+            </div>
             
             <div class="alert-panel">
                 <div class="card-header"><i class="fas fa-bell"></i> ALERTS <span class="alert-badge" id="alert-count">0</span></div>
