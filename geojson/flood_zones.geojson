@@ -1,0 +1,172 @@
+{
+  "type": "FeatureCollection",
+  "name": "Kukatpally_Flood_Risk_Zones",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 1,
+        "name": "High Risk Zone - Kukatpally Main",
+        "risk_level": "high",
+        "risk_color": "#e74c3c",
+        "flood_depth_potential_m": 2.5,
+        "population_at_risk": 45000,
+        "description": "Primary flood-prone area along main nala",
+        "history": "Severely affected in Oct 2020 floods"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.38, 17.51],
+            [78.40, 17.515],
+            [78.42, 17.505],
+            [78.43, 17.49],
+            [78.425, 17.48],
+            [78.41, 17.475],
+            [78.39, 17.485],
+            [78.38, 17.50],
+            [78.38, 17.51]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 2,
+        "name": "High Risk Zone - Erragadda",
+        "risk_level": "high",
+        "risk_color": "#e74c3c",
+        "flood_depth_potential_m": 2.0,
+        "population_at_risk": 28000,
+        "description": "Downstream low-lying area",
+        "history": "Chronic flooding issues"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.43, 17.47],
+            [78.45, 17.475],
+            [78.455, 17.46],
+            [78.45, 17.45],
+            [78.435, 17.445],
+            [78.425, 17.455],
+            [78.43, 17.47]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 3,
+        "name": "Medium Risk Zone - KPHB",
+        "risk_level": "medium",
+        "risk_color": "#f39c12",
+        "flood_depth_potential_m": 1.0,
+        "population_at_risk": 35000,
+        "description": "Moderate flood risk near KPHB Colony",
+        "history": "Partial inundation in major events"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.39, 17.52],
+            [78.42, 17.525],
+            [78.44, 17.51],
+            [78.42, 17.505],
+            [78.40, 17.515],
+            [78.39, 17.52]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 4,
+        "name": "Medium Risk Zone - Miyapur",
+        "risk_level": "medium",
+        "risk_color": "#f39c12",
+        "flood_depth_potential_m": 0.8,
+        "population_at_risk": 22000,
+        "description": "Upstream moderate risk area",
+        "history": "Occasional waterlogging"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.34, 17.53],
+            [78.37, 17.54],
+            [78.38, 17.52],
+            [78.36, 17.51],
+            [78.34, 17.515],
+            [78.34, 17.53]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 5,
+        "name": "Low Risk Zone - Moosapet",
+        "risk_level": "low",
+        "risk_color": "#27ae60",
+        "flood_depth_potential_m": 0.3,
+        "population_at_risk": 15000,
+        "description": "Elevated area with good drainage",
+        "history": "Minor waterlogging only"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.41, 17.47],
+            [78.43, 17.48],
+            [78.44, 17.465],
+            [78.435, 17.455],
+            [78.42, 17.46],
+            [78.41, 17.47]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 6,
+        "name": "Low Risk Zone - Balanagar",
+        "risk_level": "low",
+        "risk_color": "#27ae60",
+        "flood_depth_potential_m": 0.4,
+        "population_at_risk": 18000,
+        "description": "Industrial zone with storm drains",
+        "history": "Localized flooding in extreme events"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.33, 17.48],
+            [78.36, 17.49],
+            [78.37, 17.475],
+            [78.35, 17.465],
+            [78.33, 17.47],
+            [78.33, 17.48]
+          ]
+        ]
+      }
+    }
+  ]
+}
