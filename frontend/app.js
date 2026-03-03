@@ -18,8 +18,8 @@ const CONFIG = {
     API_URL: 'http://localhost:8000',
     WS_URL: 'ws://localhost:8000/ws',
     UPDATE_INTERVAL: 5000, // Poll every 5 seconds
-    MAP_CENTER: [17.49, 78.40], // Kukatpally area center
-    MAP_ZOOM: 13,
+    MAP_CENTER: [17.4898, 78.4340], // GHMC Zone 12 center (from QGIS data)
+    MAP_ZOOM: 12, // Adjusted for full zone coverage
     MAX_CHART_POINTS: 30
 };
 

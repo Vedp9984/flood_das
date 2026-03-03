@@ -4,11 +4,12 @@ Hydrological Computation Module for Flood DAS
 Implements the Rational Method for discharge estimation
 and flood threshold detection logic.
 
-Kukatpally Nala Sub-Catchment Parameters:
+GHMC Zone 12 Sub-Catchment Parameters:
 -----------------------------------------
-- Catchment Area (A): 167 km² = 167 × 10⁶ m²
-- Runoff Coefficient (C): 0.9 (highly urbanized)
+- Catchment Area (A): 104.3 km² = 104.3 × 10⁶ m²
+- Runoff Coefficient (C): 0.85 (highly urbanized)
 - Reference: 13 October 2020 Hyderabad Flood Event
+- Wards: 23 GHMC Zone 12 wards (Kukatpally, Miyapur, KPHB, etc.)
 
 Rational Method Formula:
 -----------------------
@@ -23,7 +24,7 @@ Where:
 Thresholds (Based on Historical Analysis):
 -----------------------------------------
 - Heavy Rainfall Alert: > 50 mm/hr
-- Flood Risk Alert: Q > 300 m³/s
+- Flood Risk Alert: Q > 200 m³/s
 - Critical Water Level: > 2.5 m
 """
 
@@ -33,16 +34,16 @@ from datetime import datetime
 
 
 # ============================================================================
-# CATCHMENT PARAMETERS - Kukatpally Nala Sub-Catchment
+# CATCHMENT PARAMETERS - GHMC Zone 12 Sub-Catchment
 # ============================================================================
 
-CATCHMENT_AREA_KM2 = 167  # km²
-CATCHMENT_AREA_M2 = CATCHMENT_AREA_KM2 * 1e6  # 167 × 10⁶ m²
-RUNOFF_COEFFICIENT = 0.9  # High urbanization
+CATCHMENT_AREA_KM2 = 104.3  # km² (actual area from QGIS)
+CATCHMENT_AREA_M2 = CATCHMENT_AREA_KM2 * 1e6  # 104.3 × 10⁶ m²
+RUNOFF_COEFFICIENT = 0.85  # High urbanization
 
 # Threshold values for alert generation
 RAINFALL_THRESHOLD_MM_HR = 50  # mm/hr - Heavy rainfall threshold
-DISCHARGE_THRESHOLD_M3S = 300  # m³/s - Flood risk threshold
+DISCHARGE_THRESHOLD_M3S = 200  # m³/s - Flood risk threshold (scaled for area)
 WATER_LEVEL_THRESHOLD_M = 2.5  # m - Critical stage threshold
 
 

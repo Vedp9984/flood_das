@@ -117,19 +117,20 @@ class CurrentStatus(BaseModel):
 app = FastAPI(
     title="Flood Data Acquisition System (DAS)",
     description="""
-    Smart City Urban Flood Monitoring System for Kukatpally Nala Sub-Catchment, Hyderabad.
+    Smart City Urban Flood Monitoring System for GHMC Zone 12, Hyderabad.
     
     ## Features
     * Real-time sensor data ingestion
     * Rational Method discharge computation
     * Automated flood alerts
-    * GIS layer integration
+    * GIS layer integration (from QGIS GeoPackage data)
     * WebSocket live updates
     
     ## Catchment Parameters
-    * Area: 167 km²
-    * Runoff Coefficient: 0.9
+    * Area: 104.3 km² (23 GHMC Zone 12 wards)
+    * Runoff Coefficient: 0.85
     * Reference Event: 13 October 2020 Hyderabad Flood
+    * Wards: Kukatpally, Miyapur, KPHB, Sanath Nagar, Chintal, etc.
     """,
     version="1.0.0",
     contact={

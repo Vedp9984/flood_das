@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "name": "Kukatpally_Sensor_Network",
+  "name": "Zone_12_Sensor_Network",
   "crs": {
     "type": "name",
     "properties": {
@@ -12,136 +12,192 @@
       "type": "Feature",
       "properties": {
         "id": 1,
-        "name": "Kukatpally_Rain_01",
+        "name": "Zone12_Rain_01",
         "type": "rain_gauge",
         "icon": "cloud-rain",
         "color": "#3498db",
-        "location": "KPHB Colony",
+        "location": "Kukatpally Bus Stand Area",
         "status": "active",
-        "installed_date": "2023-06-15",
-        "elevation_m": 542,
+        "installed_date": "2024-01-15",
+        "elevation_m": 538,
+        "zero_level_m": 0.0,
+        "danger_level_m": 2.5,
         "description": "Tipping bucket rain gauge - 0.2mm resolution"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.3996, 17.4947]
+        "coordinates": [
+          78.413943,
+          17.499766
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 2,
-        "name": "Kukatpally_Rain_02",
+        "name": "Zone12_Rain_02",
         "type": "rain_gauge",
         "icon": "cloud-rain",
         "color": "#3498db",
-        "location": "Kukatpally Bus Stand",
+        "location": "KPHB Colony",
         "status": "active",
-        "installed_date": "2023-06-15",
-        "elevation_m": 538,
+        "installed_date": "2024-01-15",
+        "elevation_m": 542,
+        "zero_level_m": 0.0,
+        "danger_level_m": 2.5,
         "description": "Tipping bucket rain gauge - 0.2mm resolution"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.4150, 17.4850]
+        "coordinates": [
+          78.443943,
+          17.519766
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 3,
-        "name": "Kukatpally_Rain_03",
+        "name": "Zone12_Rain_03",
         "type": "rain_gauge",
         "icon": "cloud-rain",
         "color": "#3498db",
         "location": "Miyapur Junction",
         "status": "active",
-        "installed_date": "2023-06-20",
+        "installed_date": "2024-01-15",
         "elevation_m": 556,
+        "zero_level_m": 0.0,
+        "danger_level_m": 2.5,
         "description": "Tipping bucket rain gauge - 0.2mm resolution"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.3850, 17.5050]
+        "coordinates": [
+          78.39568,
+          17.540832
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 4,
-        "name": "Kukatpally_Rain_04",
+        "name": "Zone12_Rain_04",
         "type": "rain_gauge",
         "icon": "cloud-rain",
         "color": "#3498db",
         "location": "Moosapet Area",
         "status": "active",
-        "installed_date": "2023-06-20",
+        "installed_date": "2024-01-15",
         "elevation_m": 535,
+        "zero_level_m": 0.0,
+        "danger_level_m": 2.5,
         "description": "Tipping bucket rain gauge - 0.2mm resolution"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.4250, 17.4750]
+        "coordinates": [
+          78.453943,
+          17.469766
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 5,
-        "name": "Nala_Stage_01_Upstream",
-        "type": "water_level",
-        "icon": "water",
-        "color": "#9b59b6",
-        "location": "Upstream - Miyapur",
+        "name": "Zone12_Rain_05",
+        "type": "rain_gauge",
+        "icon": "cloud-rain",
+        "color": "#3498db",
+        "location": "Balanagar Industrial Area",
         "status": "active",
-        "installed_date": "2023-07-01",
+        "installed_date": "2024-01-15",
+        "elevation_m": 530,
         "zero_level_m": 0.0,
         "danger_level_m": 2.5,
-        "description": "Ultrasonic water level sensor - 1cm accuracy"
+        "description": "Tipping bucket rain gauge - 0.2mm resolution"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.3800, 17.5100]
+        "coordinates": [
+          78.38568,
+          17.438699
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 6,
-        "name": "Nala_Stage_02_Middle",
+        "name": "Nala_Stage_01_Upstream",
         "type": "water_level",
         "icon": "water",
         "color": "#9b59b6",
-        "location": "Mid-stream - KPHB",
+        "location": "Upstream - Miyapur Side",
         "status": "active",
-        "installed_date": "2023-07-01",
+        "installed_date": "2024-01-15",
+        "elevation_m": 540,
         "zero_level_m": 0.0,
         "danger_level_m": 2.5,
         "description": "Ultrasonic water level sensor - 1cm accuracy"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.4000, 17.4900]
+        "coordinates": [
+          78.423943,
+          17.530832
+        ]
       }
     },
     {
       "type": "Feature",
       "properties": {
         "id": 7,
-        "name": "Nala_Stage_03_Downstream",
+        "name": "Nala_Stage_02_Middle",
         "type": "water_level",
         "icon": "water",
         "color": "#9b59b6",
-        "location": "Downstream - Erragadda",
+        "location": "Mid-stream - KPHB Area",
         "status": "active",
-        "installed_date": "2023-07-01",
+        "installed_date": "2024-01-15",
+        "elevation_m": 540,
         "zero_level_m": 0.0,
         "danger_level_m": 2.5,
         "description": "Ultrasonic water level sensor - 1cm accuracy"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [78.4200, 17.4700]
+        "coordinates": [
+          78.433943,
+          17.489766
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 8,
+        "name": "Nala_Stage_03_Downstream",
+        "type": "water_level",
+        "icon": "water",
+        "color": "#9b59b6",
+        "location": "Downstream - Erragadda Side",
+        "status": "active",
+        "installed_date": "2024-01-15",
+        "elevation_m": 540,
+        "zero_level_m": 0.0,
+        "danger_level_m": 2.5,
+        "description": "Ultrasonic water level sensor - 1cm accuracy"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.482206,
+          17.448699
+        ]
       }
     }
   ]
