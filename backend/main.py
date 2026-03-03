@@ -27,6 +27,12 @@ from pydantic import BaseModel, Field
 import json
 import asyncio
 import os
+import io
+import numpy as np
+import rasterio
+from rasterio.warp import transform_bounds
+from matplotlib import pyplot as plt
+from fastapi.responses import Response, FileResponse, JSONResponse
 
 # Local imports
 from .database import get_db, engine, Base, SessionLocal
@@ -206,16 +212,16 @@ async def startup_event():
 # API ENDPOINTS
 # ============================================================================
 
+from fastapi.responses import RedirectResponse
+
 @app.get("/", tags=["Root"])
 async def root():
-    """Root endpoint - system information"""
-    return {
-        "system": "Flood Data Acquisition System (DAS)",
-        "target": "Kukatpally Nala Sub-Catchment, Hyderabad",
-        "version": "1.0.0",
-        "status": "operational",
-        "api_docs": "/docs"
-    }
+    """Redirect to dashboard"""
+    return RedirectResponse(url="/frontend/index.html")
+
+# Mount Static Files
+# Frontend files (HTML, JS, CSS)
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
 @app.get("/catchment_info", tags=["Info"])
@@ -570,6 +576,95 @@ async def get_current_status(db: Session = Depends(get_db)):
 # ----------------------------------------------------------------------------
 # GEOJSON ENDPOINTS
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# GEOSPATIAL RASTER ENDPOINTS
+# ----------------------------------------------------------------------------
+
+@app.get("/raster/{raster_name}", tags=["GIS"])
+async def get_raster_image(raster_name: str, colormap: str = "terrain"):
+    """
+    Serve a raster layer as a PNG image for Leaflet ImageOverlay.
+    Returns the image data and the geographic bounds in WGS84.
+    """
+    raster_map = {
+        "dem": "backend/raster_data/dem.tif",
+        "strahler": "backend/raster_data/strahler.tif",
+        "basins": "backend/raster_data/basins.tif",
+        "filled_dem": "backend/raster_data/filled_dem.tif"
+    }
+    
+    if raster_name not in raster_map:
+        raise HTTPException(status_code=404, detail="Raster not found")
+    
+    file_path = raster_map[raster_name]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File {file_path} not found")
+
+    try:
+        with rasterio.open(file_path) as src:
+            # Get bounds in 4326
+            bounds = transform_bounds(src.crs, 'EPSG:4326', *src.bounds)
+            
+            # Read first band
+            data = src.read(1)
+            
+            # Mask nodata
+            if src.nodata is not None:
+                data = np.ma.masked_equal(data, src.nodata)
+            
+            # Normalize and colormap
+            plt.figure(figsize=(10, 10))
+            plt.imshow(data, cmap=colormap)
+            plt.axis('off')
+            
+            # Save to buffer
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', transparent=True, bbox_inches='tight', pad_inches=0)
+            plt.close()
+            buf.seek(0)
+            
+            # Return image with bounds in headers (or consider a separate metadata endpoint)
+            # For simplicity, we'll return just the image here and the frontend will 
+            # get bounds from a metadata endpoint or we'll embed them.
+            # Let's provide a metadata endpoint too.
+            return Response(content=buf.getvalue(), media_type="image/png", headers={
+                "X-Raster-Bounds": json.dumps(bounds)
+            })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/raster_metadata/{raster_name}", tags=["GIS"])
+async def get_raster_metadata(raster_name: str):
+    """Get geographic bounds and metadata for a raster resource"""
+    raster_map = {
+        "dem": "backend/raster_data/dem.tif",
+        "strahler": "backend/raster_data/strahler.tif",
+        "basins": "backend/raster_data/basins.tif",
+        "filled_dem": "backend/raster_data/filled_dem.tif"
+    }
+    
+    if raster_name not in raster_map:
+        raise HTTPException(status_code=404, detail="Raster not found")
+        
+    file_path = raster_map[raster_name]
+    try:
+        with rasterio.open(file_path) as src:
+            bounds = transform_bounds(src.crs, 'EPSG:4326', *src.bounds)
+            return {
+                "name": raster_name,
+                "crs": str(src.crs),
+                "width": src.width,
+                "height": src.height,
+                "bounds": {
+                    "west": bounds[0],
+                    "south": bounds[1],
+                    "east": bounds[2],
+                    "north": bounds[3]
+                }
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/geojson/{layer_path:path}", tags=["GIS"])
 async def get_geojson_layer(layer_path: str):

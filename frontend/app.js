@@ -5,9 +5,8 @@
 
 // Configuration
 const CONFIG = {
-    API_URL: 'http://localhost:8000',
-    GEOJSON_URL: '/home/ved_maurya/college/sem6/Hydro_informatics/flood_das/geojson',
-    WS_URL: 'ws://localhost:8000/ws',
+    API_URL: window.location.origin,
+    WS_URL: `ws://${window.location.host}/ws`,
     UPDATE_INTERVAL: 5000,
     MAP_CENTER: [17.4898, 78.4340],
     MAP_ZOOM: 12
@@ -28,21 +27,21 @@ let featureCount = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🌊 Flood DAS - Initializing QGIS-like Layer System...');
-    
+
     initDateTime();
     initMap();
     initCharts();
-    
+
     await loadLayerConfig();
     initBasemaps();
     await loadAllLayers();
     buildLayerTree();
     buildLegend();
-    
+
     initEventListeners();
     initWebSocket();
     startDataPolling();
-    
+
     updateLayerCount();
     console.log('✓ Flood DAS - Ready');
 });
@@ -76,13 +75,13 @@ function initMap() {
         zoom: CONFIG.MAP_ZOOM,
         zoomControl: false
     });
-    
+
     // Mouse move for coordinates
     map.on('mousemove', (e) => {
-        document.querySelector('#map-coords span').textContent = 
+        document.querySelector('#map-coords span').textContent =
             `Lat: ${e.latlng.lat.toFixed(5)}, Lon: ${e.latlng.lng.toFixed(5)}`;
     });
-    
+
     // Zoom change
     map.on('zoomend', () => {
         const zoom = map.getZoom();
@@ -90,7 +89,7 @@ function initMap() {
         const scale = Math.round(591657550.5 / Math.pow(2, zoom));
         document.getElementById('map-scale').textContent = `Scale: 1:${scale.toLocaleString()}`;
     });
-    
+
     map.fire('zoomend');
     console.log('✓ Map initialized');
 }
@@ -116,43 +115,65 @@ function getDefaultLayerConfig() {
             {
                 id: 'base', name: 'Base Layers', icon: 'layer-group', expanded: true,
                 layers: [
-                    { id: 'watershed', name: 'Watershed Boundary', file: 'layers/watershed_boundary.geojson', type: 'polygon', visible: true,
-                      style: { color: '#2980b9', weight: 3, fillColor: '#2980b9', fillOpacity: 0.1, dashArray: '10, 5' }, zIndex: 100 },
-                    { id: 'wards', name: 'Ward Boundaries', file: 'layers/ward_boundaries.geojson', type: 'polygon', visible: true,
-                      style: { color: '#7f8c8d', weight: 1.5, fillColor: '#bdc3c7', fillOpacity: 0.05 }, zIndex: 90 }
+                    {
+                        id: 'watershed', name: 'Watershed Boundary', file: 'layers/watershed_boundary.geojson', type: 'polygon', visible: true,
+                        style: { color: '#2980b9', weight: 3, fillColor: '#2980b9', fillOpacity: 0.1, dashArray: '10, 5' }, zIndex: 100
+                    },
+                    {
+                        id: 'wards', name: 'Ward Boundaries', file: 'layers/ward_boundaries.geojson', type: 'polygon', visible: true,
+                        style: { color: '#7f8c8d', weight: 1.5, fillColor: '#bdc3c7', fillOpacity: 0.05 }, zIndex: 90
+                    }
                 ]
             },
             {
                 id: 'hydrology', name: 'Drainage Network', icon: 'water', expanded: true,
                 layers: [
-                    { id: 'channels_4', name: 'Main Channels (Order 4)', file: 'layers/drainage_order_4.geojson', type: 'line', visible: true,
-                      style: { color: '#0066cc', weight: 5, opacity: 0.9 }, zIndex: 200 },
-                    { id: 'channels_3', name: 'Secondary (Order 3)', file: 'layers/drainage_order_3.geojson', type: 'line', visible: true,
-                      style: { color: '#3399ff', weight: 3.5, opacity: 0.8 }, zIndex: 190 },
-                    { id: 'channels_2', name: 'Tertiary (Order 2)', file: 'layers/drainage_order_2.geojson', type: 'line', visible: false,
-                      style: { color: '#66b3ff', weight: 2.5, opacity: 0.7 }, zIndex: 180 },
-                    { id: 'channels_1', name: 'Minor (Order 1)', file: 'layers/drainage_order_1.geojson', type: 'line', visible: false,
-                      style: { color: '#99ccff', weight: 1.5, opacity: 0.6 }, zIndex: 170 }
+                    {
+                        id: 'channels_4', name: 'Main Channels (Order 4)', file: 'layers/drainage_order_4.geojson', type: 'line', visible: true,
+                        style: { color: '#0066cc', weight: 5, opacity: 0.9 }, zIndex: 200
+                    },
+                    {
+                        id: 'channels_3', name: 'Secondary (Order 3)', file: 'layers/drainage_order_3.geojson', type: 'line', visible: true,
+                        style: { color: '#3399ff', weight: 3.5, opacity: 0.8 }, zIndex: 190
+                    },
+                    {
+                        id: 'channels_2', name: 'Tertiary (Order 2)', file: 'layers/drainage_order_2.geojson', type: 'line', visible: false,
+                        style: { color: '#66b3ff', weight: 2.5, opacity: 0.7 }, zIndex: 180
+                    },
+                    {
+                        id: 'channels_1', name: 'Minor (Order 1)', file: 'layers/drainage_order_1.geojson', type: 'line', visible: false,
+                        style: { color: '#99ccff', weight: 1.5, opacity: 0.6 }, zIndex: 170
+                    }
                 ]
             },
             {
                 id: 'risk', name: 'Flood Risk Zones', icon: 'exclamation-triangle', expanded: true,
                 layers: [
-                    { id: 'risk_high', name: 'High Risk Zones', file: 'layers/flood_risk_high.geojson', type: 'polygon', visible: true,
-                      style: { color: '#e74c3c', weight: 2, fillColor: '#e74c3c', fillOpacity: 0.4 }, zIndex: 150 },
-                    { id: 'risk_medium', name: 'Medium Risk Zones', file: 'layers/flood_risk_medium.geojson', type: 'polygon', visible: true,
-                      style: { color: '#f39c12', weight: 2, fillColor: '#f39c12', fillOpacity: 0.3 }, zIndex: 140 },
-                    { id: 'risk_low', name: 'Low Risk Zones', file: 'layers/flood_risk_low.geojson', type: 'polygon', visible: false,
-                      style: { color: '#27ae60', weight: 2, fillColor: '#27ae60', fillOpacity: 0.2 }, zIndex: 130 }
+                    {
+                        id: 'risk_high', name: 'High Risk Zones', file: 'layers/flood_risk_high.geojson', type: 'polygon', visible: true,
+                        style: { color: '#e74c3c', weight: 2, fillColor: '#e74c3c', fillOpacity: 0.4 }, zIndex: 150
+                    },
+                    {
+                        id: 'risk_medium', name: 'Medium Risk Zones', file: 'layers/flood_risk_medium.geojson', type: 'polygon', visible: true,
+                        style: { color: '#f39c12', weight: 2, fillColor: '#f39c12', fillOpacity: 0.3 }, zIndex: 140
+                    },
+                    {
+                        id: 'risk_low', name: 'Low Risk Zones', file: 'layers/flood_risk_low.geojson', type: 'polygon', visible: false,
+                        style: { color: '#27ae60', weight: 2, fillColor: '#27ae60', fillOpacity: 0.2 }, zIndex: 130
+                    }
                 ]
             },
             {
                 id: 'sensors', name: 'Monitoring', icon: 'broadcast-tower', expanded: true,
                 layers: [
-                    { id: 'rain_gauges', name: 'Rain Gauges', file: 'layers/rain_gauges.geojson', type: 'point', visible: true,
-                      style: { color: '#3498db', icon: 'cloud-rain', size: 24 }, zIndex: 300 },
-                    { id: 'water_levels', name: 'Water Level Sensors', file: 'layers/water_level_sensors.geojson', type: 'point', visible: true,
-                      style: { color: '#9b59b6', icon: 'water', size: 24 }, zIndex: 290 }
+                    {
+                        id: 'rain_gauges', name: 'Rain Gauges', file: 'layers/rain_gauges.geojson', type: 'point', visible: true,
+                        style: { color: '#3498db', icon: 'cloud-rain', size: 24 }, zIndex: 300
+                    },
+                    {
+                        id: 'water_levels', name: 'Water Level Sensors', file: 'layers/water_level_sensors.geojson', type: 'point', visible: true,
+                        style: { color: '#9b59b6', icon: 'water', size: 24 }, zIndex: 290
+                    }
                 ]
             }
         ],
@@ -172,13 +193,13 @@ function getDefaultLayerConfig() {
 function initBasemaps() {
     const container = document.getElementById('basemap-content');
     container.innerHTML = '';
-    
+
     layerConfig.basemaps.forEach(bm => {
         basemapLayers[bm.id] = L.tileLayer(bm.url, {
             attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19
         });
-        
+
         const option = document.createElement('div');
         option.className = `basemap-option ${bm.default ? 'active' : ''}`;
         option.innerHTML = `
@@ -187,7 +208,7 @@ function initBasemaps() {
         `;
         option.onclick = () => setBasemap(bm.id);
         container.appendChild(option);
-        
+
         if (bm.default) {
             basemapLayers[bm.id].addTo(map);
             currentBasemap = bm.id;
@@ -201,7 +222,7 @@ function setBasemap(id) {
     }
     basemapLayers[id].addTo(map);
     currentBasemap = id;
-    
+
     document.querySelectorAll('.basemap-option').forEach(opt => {
         opt.classList.toggle('active', opt.querySelector('input').value === id);
         opt.querySelector('input').checked = opt.querySelector('input').value === id;
@@ -214,28 +235,60 @@ function setBasemap(id) {
 
 async function loadAllLayers() {
     const loadingEl = document.querySelector('.loading-layers');
-    
+
     for (const group of layerConfig.groups) {
         for (const layerDef of group.layers) {
             try {
-                const response = await fetch(`${CONFIG.API_URL}/geojson/${layerDef.file}`);
-                if (!response.ok) continue;
-                
-                const geojson = await response.json();
-                const layer = createLayer(geojson, layerDef);
-                layers[layerDef.id] = { leafletLayer: layer, config: layerDef, geojson: geojson };
-                featureCount += geojson.features?.length || 0;
-                
-                if (layerDef.visible) {
-                    layer.addTo(map);
+                if (layerDef.type === 'raster') {
+                    await loadRasterLayer(layerDef);
+                } else {
+                    const response = await fetch(`${CONFIG.API_URL}/geojson/${layerDef.file}`);
+                    if (!response.ok) continue;
+
+                    const geojson = await response.json();
+                    const layer = createLayer(geojson, layerDef);
+                    layers[layerDef.id] = { leafletLayer: layer, config: layerDef, geojson: geojson };
+                    featureCount += geojson.features?.length || 0;
+
+                    if (layerDef.visible) {
+                        layer.addTo(map);
+                    }
                 }
             } catch (error) {
                 console.warn(`Could not load layer: ${layerDef.id}`, error);
             }
         }
     }
-    
+
     if (loadingEl) loadingEl.remove();
+}
+
+async function loadRasterLayer(config) {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}/raster_metadata/${config.raster}`);
+        if (!response.ok) throw new Error('Metadata not found');
+        const metadata = await response.json();
+
+        const bounds = [
+            [metadata.bounds.south, metadata.bounds.west],
+            [metadata.bounds.north, metadata.bounds.east]
+        ];
+
+        const imageUrl = `${CONFIG.API_URL}/raster/${config.raster}?colormap=${config.colormap || 'terrain'}`;
+        const layer = L.imageOverlay(imageUrl, bounds, {
+            opacity: config.visible ? (config.style?.opacity || 0.7) : 0,
+            interactive: true,
+            zIndex: config.zIndex || 10
+        });
+
+        layers[config.id] = { leafletLayer: layer, config: config };
+
+        if (config.visible) {
+            layer.addTo(map);
+        }
+    } catch (error) {
+        console.error(`Failed to load raster ${config.raster}:`, error);
+    }
 }
 
 function createLayer(geojson, config) {
@@ -256,7 +309,11 @@ function createLayer(geojson, config) {
         });
     } else {
         return L.geoJSON(geojson, {
-            style: () => config.style,
+            style: () => ({
+                ...config.style,
+                fillOpacity: config.style.fillOpacity !== undefined ? config.style.fillOpacity : 0.5,
+                opacity: config.style.opacity !== undefined ? config.style.opacity : 1
+            }),
             onEachFeature: (feature, layer) => bindPopup(feature, layer)
         });
     }
@@ -265,13 +322,13 @@ function createLayer(geojson, config) {
 function bindPopup(feature, layer) {
     const props = feature.properties;
     let content = `<div class="popup-title">${props.name || 'Feature'}</div>`;
-    
+
     Object.entries(props).forEach(([key, value]) => {
         if (key !== 'name' && key !== 'layer_type' && !key.startsWith('style')) {
             content += `<div class="popup-row"><span class="popup-label">${key}:</span><span class="popup-value">${value}</span></div>`;
         }
     });
-    
+
     layer.bindPopup(content);
 }
 
@@ -282,7 +339,7 @@ function bindPopup(feature, layer) {
 function buildLayerTree() {
     const container = document.getElementById('layer-tree');
     container.innerHTML = '';
-    
+
     layerConfig.groups.forEach(group => {
         const groupEl = document.createElement('div');
         groupEl.className = 'layer-group';
@@ -298,7 +355,7 @@ function buildLayerTree() {
             </div>
         `;
         container.appendChild(groupEl);
-        
+
         // Group toggle
         const header = groupEl.querySelector('.layer-group-header');
         header.onclick = (e) => {
@@ -308,7 +365,7 @@ function buildLayerTree() {
             content.classList.toggle('collapsed');
             toggle.classList.toggle('collapsed');
         };
-        
+
         // Group checkbox
         const groupCheckbox = header.querySelector('.group-checkbox');
         groupCheckbox.onchange = () => {
@@ -316,23 +373,35 @@ function buildLayerTree() {
             groupEl.querySelectorAll('.layer-checkbox').forEach(cb => cb.checked = groupCheckbox.checked);
         };
     });
-    
+
     // Individual layer toggles
     document.querySelectorAll('.layer-checkbox').forEach(cb => {
         cb.onchange = () => toggleLayer(cb.dataset.layer, cb.checked);
     });
+
+    // Opacity sliders
+    document.querySelectorAll('.opacity-slider').forEach(slider => {
+        slider.oninput = () => updateLayerOpacity(slider.dataset.layer, slider.value / 100);
+    });
 }
 
 function createLayerItemHTML(layer) {
-    const colorStyle = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : '';
+    const colorStyle = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : layer.type === 'raster' ? 'raster' : '';
     const count = layers[layer.id]?.geojson?.features?.length || 0;
-    
+    const initialOpacity = (layer.type === 'raster' ? (layer.style?.opacity || 0.7) : (layer.style?.fillOpacity || layer.style?.opacity || 0.5)) * 100;
+
     return `
-        <div class="layer-item" data-layer="${layer.id}">
-            <input type="checkbox" class="layer-checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}>
-            <div class="layer-color ${colorStyle}" style="background: ${layer.style.fillColor || layer.style.color}"></div>
-            <span class="layer-name">${layer.name}</span>
-            <span class="layer-count">(${count})</span>
+        <div class="layer-item-container">
+            <div class="layer-item" data-layer="${layer.id}">
+                <input type="checkbox" class="layer-checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}>
+                <div class="layer-color ${colorStyle}" style="background: ${layer.style?.fillColor || layer.style?.color || '#3498db'}"></div>
+                <span class="layer-name" title="${layer.name}">${layer.name}</span>
+                ${layer.type !== 'raster' ? `<span class="layer-count">(${count})</span>` : ''}
+            </div>
+            <div class="layer-controls">
+                <i class="fas fa-adjust slider-icon"></i>
+                <input type="range" class="opacity-slider" data-layer="${layer.id}" min="0" max="100" value="${initialOpacity}">
+            </div>
         </div>
     `;
 }
@@ -340,14 +409,45 @@ function createLayerItemHTML(layer) {
 function toggleLayer(layerId, visible) {
     const layerData = layers[layerId];
     if (!layerData) return;
-    
+
     if (visible) {
         layerData.leafletLayer.addTo(map);
+        // Restore opacity if it's a raster
+        if (layerData.config.type === 'raster') {
+            const slider = document.querySelector(`.opacity-slider[data-layer="${layerId}"]`);
+            const opacity = slider ? slider.value / 100 : 0.7;
+            layerData.leafletLayer.setOpacity(opacity);
+        }
     } else {
         map.removeLayer(layerData.leafletLayer);
     }
     layerData.config.visible = visible;
     buildLegend();
+}
+
+function updateLayerOpacity(layerId, opacity) {
+    const layerData = layers[layerId];
+    if (!layerData) return;
+
+    if (layerData.config.type === 'raster') {
+        layerData.leafletLayer.setOpacity(opacity);
+    } else {
+        layerData.leafletLayer.setStyle({
+            fillOpacity: opacity,
+            opacity: opacity > 0.1 ? 1 : opacity // keep border visible unless very low
+        });
+    }
+
+    // Update config
+    if (layerData.config.style) {
+        if (layerData.config.type === 'raster') {
+            layerData.config.style.opacity = opacity;
+        } else {
+            layerData.config.style.fillOpacity = opacity;
+        }
+    } else {
+        layerData.config.style = { opacity: opacity };
+    }
 }
 
 // ========================================
@@ -357,11 +457,11 @@ function toggleLayer(layerId, visible) {
 function buildLegend() {
     const container = document.getElementById('legend-content');
     container.innerHTML = '';
-    
+
     layerConfig.groups.forEach(group => {
         group.layers.forEach(layer => {
             if (!layer.visible) return;
-            
+
             const symbolClass = layer.type === 'line' ? 'line' : layer.type === 'point' ? 'point' : '';
             const item = document.createElement('div');
             item.className = 'legend-item';
@@ -389,7 +489,7 @@ function initEventListeners() {
     };
     document.getElementById('btn-zoom-in').onclick = () => map.zoomIn();
     document.getElementById('btn-zoom-out').onclick = () => map.zoomOut();
-    
+
     // Expand/Collapse all
     document.getElementById('btn-expand-all').onclick = () => {
         document.querySelectorAll('.layer-group-content').forEach(el => el.classList.remove('collapsed'));
@@ -399,7 +499,7 @@ function initEventListeners() {
         document.querySelectorAll('.layer-group-content').forEach(el => el.classList.add('collapsed'));
         document.querySelectorAll('.group-toggle').forEach(el => el.classList.add('collapsed'));
     };
-    
+
     // Collapsible panels
     document.querySelectorAll('.panel-header.collapsible').forEach(header => {
         header.onclick = () => {
@@ -422,13 +522,13 @@ function initCharts() {
         scales: { x: { display: false }, y: { display: false } },
         plugins: { legend: { display: false } }
     };
-    
+
     charts.rainfall = new Chart(document.getElementById('rainfall-chart'), {
         type: 'line',
         data: { labels: [], datasets: [{ data: [], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.4, pointRadius: 0 }] },
         options: chartConfig
     });
-    
+
     charts.waterLevel = new Chart(document.getElementById('water-level-chart'), {
         type: 'line',
         data: { labels: [], datasets: [{ data: [], borderColor: '#9b59b6', backgroundColor: 'rgba(155, 89, 182, 0.2)', fill: true, tension: 0.4, pointRadius: 0 }] },
@@ -482,14 +582,14 @@ function updateMetrics(data) {
     document.getElementById('water-level-value').textContent = data.latest_water_level_m?.toFixed(2) || '0.00';
     document.getElementById('discharge-value').textContent = data.latest_discharge_m3s?.toFixed(1) || '0.0';
     document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-    
+
     // Update risk level
     const risk = data.risk_level?.toLowerCase() || 'normal';
     const riskCard = document.getElementById('risk-card');
     riskCard.className = `status-card risk-card ${risk}`;
     document.getElementById('risk-level').textContent = risk.toUpperCase();
     document.getElementById('risk-message').textContent = data.status_message || 'System operational';
-    
+
     // Update charts
     addChartData(data.latest_rainfall_mm || 0, data.latest_water_level_m || 0);
 }
@@ -497,7 +597,7 @@ function updateMetrics(data) {
 function addChartData(rainfall, waterLevel) {
     const maxPoints = 20;
     const time = new Date().toLocaleTimeString();
-    
+
     charts.rainfall.data.labels.push(time);
     charts.rainfall.data.datasets[0].data.push(rainfall);
     if (charts.rainfall.data.labels.length > maxPoints) {
@@ -505,7 +605,7 @@ function addChartData(rainfall, waterLevel) {
         charts.rainfall.data.datasets[0].data.shift();
     }
     charts.rainfall.update('none');
-    
+
     charts.waterLevel.data.labels.push(time);
     charts.waterLevel.data.datasets[0].data.push(waterLevel);
     if (charts.waterLevel.data.labels.length > maxPoints) {

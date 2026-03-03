@@ -11,20 +11,19 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Database configuration
-# For production, use environment variables
-# Using peer authentication (default on Fedora/RHEL)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2:///flood_das"
+    "sqlite:///./flood_das.db"
 )
 
-# Create SQLAlchemy engine with PostGIS support
+# Create SQLAlchemy engine
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
 engine = create_engine(
     DATABASE_URL,
-    echo=True,  # Set to False in production
-    pool_pre_ping=True,  # Enable connection health checks
-    pool_size=5,
-    max_overflow=10
+    echo=True,
+    pool_pre_ping=True,
+    connect_args=connect_args
 )
 
 # Session factory

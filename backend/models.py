@@ -12,9 +12,16 @@ Kukatpally Nala Sub-Catchment Parameters:
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Enum
 from sqlalchemy.sql import func
-from geoalchemy2 import Geometry
-from .database import Base
+from .database import Base, DATABASE_URL
 import enum
+
+# Use String for geometry if using SQLite (for local monitoring without PostGIS)
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+if IS_SQLITE:
+    GeometryColumn = Text
+else:
+    from geoalchemy2 import Geometry
+    GeometryColumn = Geometry
 
 
 class SeverityLevel(enum.Enum):
@@ -39,7 +46,7 @@ class Rainfall(Base):
     rainfall_mm = Column(Float, nullable=False)  # Rainfall in millimeters
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     # PostGIS Point geometry (EPSG:4326 - WGS84)
-    geom = Column(Geometry(geometry_type='POINT', srid=4326))
+    geom = Column(GeometryColumn)
     
     def __repr__(self):
         return f"<Rainfall(station={self.station_name}, rainfall={self.rainfall_mm}mm)>"
@@ -59,7 +66,7 @@ class WaterLevel(Base):
     level_m = Column(Float, nullable=False)  # Water level in meters
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     # PostGIS Point geometry (EPSG:4326 - WGS84)
-    geom = Column(Geometry(geometry_type='POINT', srid=4326))
+    geom = Column(GeometryColumn)
     
     def __repr__(self):
         return f"<WaterLevel(station={self.station_name}, level={self.level_m}m)>"
@@ -120,7 +127,7 @@ class SpatialLayer(Base):
     id = Column(Integer, primary_key=True, index=True)
     layer_name = Column(String(100), nullable=False, unique=True)
     layer_type = Column(String(50), nullable=False)  # watershed, stream, flood_zone
-    geom = Column(Geometry(geometry_type='GEOMETRY', srid=4326))  # Generic geometry
+    geom = Column(GeometryColumn)  # Generic geometry
     properties = Column(Text)  # JSON properties
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
