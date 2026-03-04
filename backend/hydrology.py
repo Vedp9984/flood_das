@@ -39,7 +39,7 @@ from datetime import datetime
 
 CATCHMENT_AREA_KM2 = 104.3  # km² (actual area from QGIS)
 CATCHMENT_AREA_M2 = CATCHMENT_AREA_KM2 * 1e6  # 104.3 × 10⁶ m²
-RUNOFF_COEFFICIENT = 0.85  # High urbanization
+RUNOFF_COEFFICIENT = 0.736  # High urbanization
 
 # Threshold values for alert generation
 RAINFALL_THRESHOLD_MM_HR = 50  # mm/hr - Heavy rainfall threshold

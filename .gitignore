@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+flood_das.db
+backend/raster_data/
+venv/
+.env
+.vscode/
+.DS_Store

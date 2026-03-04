@@ -447,6 +447,26 @@ body {
 .popup-row:last-child { border-bottom: none; }
 .popup-label { color: var(--text-muted); }
 .popup-value { color: var(--text-primary); font-weight: 500; }
+.popup-section-header {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 8px 0 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+}
+.detail-section-title {
+    grid-column: 1 / -1;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent-cyan);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding-bottom: 3px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+}
 
 /* Sensor Markers */
 .sensor-marker { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 2px solid; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }

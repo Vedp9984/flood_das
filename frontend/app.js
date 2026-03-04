@@ -366,30 +366,49 @@ function selectSubbasin(layer) {
     const props = layer.feature.properties;
 
     // Kirpich Equation: Tc = 0.0195 * L^0.77 * S^-0.385
-    // L = Watershed_Length_m, S = Relief_m / Watershed_Length_m
+    // Use Watershed_Slope_m_m if available, else fall back to Relief/Length
     const L = props.Watershed_Length_m || 0;
-    const H = props.Relief_m || 1; // avoid div by zero
-    const S = H / L;
+    const S_kirpich = props.Watershed_Slope_m_m > 0 ? props.Watershed_Slope_m_m : (props.Relief_m || 1) / Math.max(L, 1);
     let tc = 0;
-    if (L > 0 && S > 0) {
-        tc = 0.0195 * Math.pow(L, 0.77) * Math.pow(S, -0.385);
+    if (L > 0 && S_kirpich > 0) {
+        tc = 0.0195 * Math.pow(L, 0.77) * Math.pow(S_kirpich, -0.385);
     }
 
-    const keyMetrics = [
-        { label: 'Area', value: props.Area_km2?.toFixed(2), unit: 'km²' },
-        { label: 'Length', value: props.Watershed_Length_m?.toFixed(0), unit: 'm' },
-        { label: 'Slope', value: props.Avg_Slope_m_m?.toFixed(3), unit: 'm/m' },
+    // --- Watershed Geometry section ---
+    const watershedMetrics = [
+        { label: 'Area', value: props.Area_km2?.toFixed(3), unit: 'km²' },
+        { label: 'Perimeter', value: props.Perimeter_km?.toFixed(2), unit: 'km' },
+        { label: 'W. Length', value: props.Watershed_Length_m?.toFixed(0), unit: 'm' },
+        { label: 'W. Slope', value: props.Watershed_Slope_m_m?.toFixed(4), unit: 'm/m' },
         { label: 'Relief', value: props.Relief_m?.toFixed(1), unit: 'm' },
-        { label: 'Order', value: props.Max_Stream_Order, unit: '' },
-        { label: 'Tc (min)', value: tc.toFixed(1), unit: 'min' }
+        { label: 'Mouth Elev.', value: props.Mouth_Elevation_m?.toFixed(1), unit: 'm' }
     ];
 
-    detailsContainer.innerHTML = keyMetrics.map(m => `
-        <div class="detail-item">
-            <span class="detail-label">${m.label}</span>
-            <span class="detail-value">${m.value || '--'} ${m.unit}</span>
-        </div>
-    `).join('');
+    // --- Channel / Drainage section ---
+    const channelMetrics = [
+        { label: 'Channel Len.', value: props.Channel_Length_m?.toFixed(1), unit: 'm' },
+        { label: 'Channel Slope', value: props.Channel_Slope_m_m?.toFixed(4), unit: 'm/m' },
+        { label: 'Stream Length', value: props.Total_Stream_Length_m?.toFixed(1), unit: 'm' },
+        { label: 'Stream Order', value: props.Max_Stream_Order, unit: '' },
+        { label: 'Form Factor', value: props.Form_Factor?.toFixed(3), unit: '' },
+        { label: 'Tc', value: tc.toFixed(1), unit: 'min' }
+    ];
+
+    detailsContainer.innerHTML =
+        `<div class="detail-section-title">🏔️ Watershed Geometry</div>` +
+        watershedMetrics.map(m => `
+            <div class="detail-item">
+                <span class="detail-label">${m.label}</span>
+                <span class="detail-value">${m.value ?? '--'} ${m.unit}</span>
+            </div>
+        `).join('') +
+        `<div class="detail-section-title" style="margin-top:8px">🌊 Channel / Drainage</div>` +
+        channelMetrics.map(m => `
+            <div class="detail-item">
+                <span class="detail-label">${m.label}</span>
+                <span class="detail-value">${m.value ?? '--'} ${m.unit}</span>
+            </div>
+        `).join('');
 
     updateSimulation();
 }
@@ -402,18 +421,35 @@ function bindPopup(feature, layer) {
     let content = `<div class="popup-title">${title}</div>`;
 
     if (isSubbasin) {
-        // Formatted subbasin details
-        const metrics = [
-            { label: 'Drainage Area', value: props.Area_km2?.toFixed(2), unit: 'km²' },
-            { label: 'Relief', value: props.Relief_m?.toFixed(1), unit: 'm' },
-            { label: 'Avg Slope', value: props.Avg_Slope_m_m?.toFixed(4), unit: 'm/m' },
+        // --- Watershed Geometry ---
+        content += `<div class="popup-section-header">🏔️ Watershed Geometry</div>`;
+        const geomMetrics = [
+            { label: 'Drainage Area', value: props.Area_km2?.toFixed(3), unit: 'km²' },
+            { label: 'Perimeter', value: props.Perimeter_km?.toFixed(2), unit: 'km' },
             { label: 'Watershed Length', value: props.Watershed_Length_m?.toFixed(0), unit: 'm' },
-            { label: 'Max Stream Order', value: props.Max_Stream_Order, unit: '' },
-            { label: 'Form Factor', value: props.Form_Factor?.toFixed(3), unit: '' }
+            { label: 'Watershed Slope', value: props.Watershed_Slope_m_m?.toFixed(4), unit: 'm/m' },
+            { label: 'Relief', value: props.Relief_m?.toFixed(1), unit: 'm' },
+            { label: 'Avg DEM Slope', value: props.Avg_Slope_m_m?.toFixed(4), unit: 'm/m' },
+            { label: 'Mouth Elevation', value: props.Mouth_Elevation_m?.toFixed(1), unit: 'm' }
         ];
+        geomMetrics.forEach(m => {
+            if (m.value !== undefined && m.value !== null && m.value !== 'undefined')
+                content += `<div class="popup-row"><span class="popup-label">${m.label}:</span><span class="popup-value">${m.value} ${m.unit}</span></div>`;
+        });
 
-        metrics.forEach(m => {
-            content += `<div class="popup-row"><span class="popup-label">${m.label}:</span><span class="popup-value">${m.value} ${m.unit}</span></div>`;
+        // --- Channel / Drainage ---
+        content += `<div class="popup-section-header">🌊 Channel / Drainage</div>`;
+        const chanMetrics = [
+            { label: 'Channel Length', value: props.Channel_Length_m?.toFixed(1), unit: 'm' },
+            { label: 'Channel Slope', value: props.Channel_Slope_m_m?.toFixed(4), unit: 'm/m' },
+            { label: 'Total Stream Length', value: props.Total_Stream_Length_m?.toFixed(1), unit: 'm' },
+            { label: 'Max Stream Order', value: props.Max_Stream_Order, unit: '' },
+            { label: 'Form Factor', value: props.Form_Factor?.toFixed(3), unit: '' },
+            { label: 'Circularity Ratio', value: props.Circularity_Ratio?.toFixed(3), unit: '' }
+        ];
+        chanMetrics.forEach(m => {
+            if (m.value !== undefined && m.value !== null && m.value !== 'undefined')
+                content += `<div class="popup-row"><span class="popup-label">${m.label}:</span><span class="popup-value">${m.value} ${m.unit}</span></div>`;
         });
     } else {
         Object.entries(props).forEach(([key, value]) => {
@@ -747,7 +783,7 @@ function updateSimulation() {
 
     const props = selectedSubbasin.feature.properties;
     const areaKm2 = props.Area_km2 || 0;
-    const C = 0.85; // Rational Method Runoff Coefficient
+    const C = 0.736; // Rational Method Runoff Coefficient
 
     // Q = C * i * A
     // i in m/s = intensity_mm_hr / (1000 * 3600)

@@ -118,7 +118,7 @@ def create_watershed_boundary(ward_gdf):
             "id": 1,
             "name": "GHMC Zone 12 Watershed",
             "area_km2": area_km2,
-            "runoff_coeff": 0.85,
+            "runoff_coeff": 0.736,
             "land_use": "Urban/Mixed",
             "layer_type": "watershed"
         },

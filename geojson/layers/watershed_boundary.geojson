@@ -15,7 +15,7 @@
         "id": 1,
         "name": "GHMC Zone 12 Watershed",
         "area_km2": 104.3,
-        "runoff_coeff": 0.85,
+        "runoff_coeff": 0.736,
         "land_use": "Urban/Mixed",
         "layer_type": "watershed"
       },

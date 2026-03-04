@@ -12,7 +12,7 @@ def process_subbasins():
 
     print(f"Reading shapefile: {shp_path}")
     gdf = gpd.read_file(shp_path)
-    
+
     # Ensure CRS is 4326 for Leaflet
     if gdf.crs != "EPSG:4326":
         print(f"Reprojecting from {gdf.crs} to EPSG:4326")
@@ -22,19 +22,35 @@ def process_subbasins():
     df = pd.read_csv(csv_path)
 
     # Convert Basin_ID to same type as DN for joining
-    # DN is usually the value from the raster (integer)
     gdf['DN'] = gdf['DN'].astype(int)
     df['Basin_ID'] = df['Basin_ID'].astype(int)
 
-    # Merge
-    print("Merging attributes...")
+    # Merge catchment characteristics
+    print("Merging catchment characteristics...")
     merged_gdf = gdf.merge(df, left_on='DN', right_on='Basin_ID', how='inner')
+
+    # Merge new hydrological data (watershed slope, channel data)
+    hydro_csv_path = os.path.join(base_dir, "output", "subcatchment_hydrological_data.csv")
+    if os.path.exists(hydro_csv_path):
+        print(f"Reading hydrological CSV: {hydro_csv_path}")
+        df_hydro = pd.read_csv(hydro_csv_path)
+        df_hydro['Basin_ID'] = df_hydro['Basin_ID'].astype(int)
+        # Only pick the new columns not already in the GeoJSON
+        cols_to_add = ['Basin_ID', 'Watershed_Slope_m_m', 'Channel_Length_m', 'Channel_Slope_m_m', 'Total_Stream_Length_m']
+        df_hydro = df_hydro[cols_to_add]
+        print("Merging hydrological data...")
+        merged_gdf = merged_gdf.merge(df_hydro, on='Basin_ID', how='left')
+        print("  Added: Watershed_Slope_m_m, Channel_Length_m, Channel_Slope_m_m, Total_Stream_Length_m")
+    else:
+        print(f"  Warning: {hydro_csv_path} not found, skipping hydrological merge")
 
     # Save to GeoJSON
     print(f"Saving enriched GeoJSON to: {output_path}")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged_gdf.to_file(output_path, driver='GeoJSON')
     print("Success!")
+    print(f"Final columns: {list(merged_gdf.columns)}")
+
 
 if __name__ == "__main__":
     process_subbasins()

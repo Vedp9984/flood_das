@@ -220,7 +220,7 @@ def create_watershed(flood_zones_gdf):
                 "id": 1,
                 "name": "Zone 12 GHMC Sub-Catchment",
                 "area_km2": area_km2,
-                "runoff_coeff": 0.85,
+                "runoff_coeff": 0.736,
                 "land_use": "Urban/Mixed",
                 "district": "Medchal-Malkajgiri & Ranga Reddy",
                 "city": "Hyderabad",
